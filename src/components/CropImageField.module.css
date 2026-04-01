@@ -1,0 +1,362 @@
+.wrap {
+  width: 100%;
+  margin-bottom: calc(var(--base, 8px) * 2);
+}
+
+.labelWrap {
+  margin-bottom: 8px;
+}
+
+.label {
+  display: block;
+  font-size: 11.2px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--theme-elevation-400, #999);
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  border: 1px dashed var(--theme-elevation-150, rgba(255, 255, 255, 0.15));
+  border-radius: var(--style-radius-m, 4px);
+  background: var(--theme-elevation-50, rgba(255, 255, 255, 0.03));
+}
+
+.selected {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--theme-elevation-150, rgba(255, 255, 255, 0.12));
+  border-radius: var(--style-radius-m, 4px);
+  background: var(--theme-elevation-50, rgba(255, 255, 255, 0.03));
+}
+
+.thumbnail {
+  flex-shrink: 0;
+  width: 96px;
+  height: 72px;
+  border-radius: var(--style-radius-s, 3px);
+  overflow: hidden;
+  background: var(--theme-elevation-100, rgba(255, 255, 255, 0.06));
+}
+
+.thumbnailImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filename {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--theme-text, #fff);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--theme-elevation-300, rgba(255, 255, 255, 0.25));
+}
+
+.dotSet {
+  background: var(--theme-success-500, #46c263);
+}
+
+.generating {
+  font-size: 11px;
+  color: var(--theme-elevation-500, rgba(255, 255, 255, 0.5));
+  font-style: italic;
+}
+
+.cropCards {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+  align-items: flex-start;
+}
+
+.cropCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.cropCardImg {
+  height: 56px;
+  width: auto;
+  min-width: 40px;
+  max-width: 120px;
+  border-radius: 3px;
+  display: block;
+  object-fit: cover;
+}
+
+.cropCardEmpty {
+  height: 56px;
+  width: 72px;
+  border-radius: 3px;
+  background: var(--theme-elevation-100, rgba(255, 255, 255, 0.06));
+  border: 1px dashed var(--theme-elevation-200, rgba(255, 255, 255, 0.12));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cropCardLabel {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--theme-elevation-600, rgba(255, 255, 255, 0.6));
+  white-space: nowrap;
+}
+
+.cropCardSize {
+  font-size: 10px;
+  color: var(--theme-elevation-400, rgba(255, 255, 255, 0.35));
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.btnPrimary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11.5px;
+  font-weight: 500;
+  border-radius: var(--style-radius-s, 3px);
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, opacity 0.15s;
+  background: var(--theme-text, #fff);
+  color: var(--theme-bg, #0d0d0d);
+}
+
+.btnPrimary:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.btnPrimary:not(:disabled):hover {
+  opacity: 0.88;
+}
+
+.btnGhost {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11.5px;
+  font-weight: 500;
+  border-radius: var(--style-radius-s, 3px);
+  border: 1px solid var(--theme-elevation-200, rgba(255, 255, 255, 0.15));
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, opacity 0.15s;
+  background: transparent;
+  color: var(--theme-text, #fff);
+}
+
+.btnGhost:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.btnGhost:not(:disabled):hover {
+  border-color: var(--theme-elevation-400, rgba(255, 255, 255, 0.35));
+}
+
+.btnDanger {
+  composes: btnGhost;
+  color: var(--theme-error-500, #f44336);
+  border-color: transparent;
+}
+
+.btnDanger:not(:disabled):hover {
+  border-color: var(--theme-error-500, #f44336);
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 960px;
+  height: calc(100vh - 32px);
+  background: var(--theme-elevation-0, #111);
+  border: 1px solid var(--theme-elevation-150, rgba(255, 255, 255, 0.1));
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--theme-elevation-150, rgba(255, 255, 255, 0.1));
+  flex-shrink: 0;
+}
+
+.modalTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--theme-text, #fff);
+}
+
+.modalClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--theme-elevation-500, rgba(255, 255, 255, 0.5));
+  border-radius: 4px;
+  font-size: 16px;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+}
+
+.modalClose:hover {
+  color: var(--theme-text, #fff);
+  background: var(--theme-elevation-100, rgba(255, 255, 255, 0.06));
+}
+
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--theme-elevation-150, rgba(255, 255, 255, 0.1));
+  padding: 0 20px;
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.tab {
+  flex-shrink: 0;
+  padding: 10px 16px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--theme-elevation-500, rgba(255, 255, 255, 0.5));
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  margin-bottom: -1px;
+  transition: color 0.15s;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  color: var(--theme-text, #fff);
+}
+
+.tabActive {
+  color: var(--theme-text, #fff);
+  border-bottom-color: var(--theme-text, #fff);
+}
+
+.cropArea {
+  container-type: size;
+  flex: 1;
+  overflow: hidden;
+  padding: 24px;
+  background: var(--theme-elevation-100, rgba(255, 255, 255, 0.04));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  --rc-drag-handle-bg-colour: rgba(255, 255, 255, 0.95);
+  --rc-border-color: rgba(0, 0, 0, 0.45);
+  --rc-drag-handle-size: 10px;
+}
+
+.cropImg {
+  display: block;
+  max-width: 100cqw;
+  max-height: 100cqh;
+  user-select: none;
+}
+
+.modalFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-top: 1px solid var(--theme-elevation-150, rgba(255, 255, 255, 0.1));
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.cropHint {
+  font-size: 11.5px;
+  color: var(--theme-elevation-500, rgba(255, 255, 255, 0.4));
+}
+
+.footerActions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.cropArea :global(.ReactCrop__child-wrapper) {
+  overflow: visible;
+}
+
+.cropArea :global(.ReactCrop.ReactCrop--fixed-aspect) {
+  overflow: visible;
+}
+
+.cropArea :global(.ReactCrop__child-wrapper > img) {
+  max-width: 100cqw;
+  max-height: 100cqh;
+}
+
+.cropArea :global(.ReactCrop__drag-handle) {
+  background-color: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  width: 10px;
+  height: 10px;
+}
