@@ -2,11 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import ReactCrop, {
-  centerCrop,
-  makeAspectCrop,
-  type PercentCrop,
-} from 'react-image-crop'
+import ReactCrop, { centerCrop, makeAspectCrop, type PercentCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
 import { useField, useListDrawer } from '@payloadcms/ui'
 
@@ -44,7 +40,13 @@ function initCrop(
   existing: CropCoords | undefined,
 ): PercentCrop {
   if (existing) {
-    return { unit: '%', x: existing.x, y: existing.y, width: existing.width, height: existing.height }
+    return {
+      unit: '%',
+      x: existing.x,
+      y: existing.y,
+      width: existing.width,
+      height: existing.height,
+    }
   }
   if (aspect) {
     return centerCrop(
@@ -68,7 +70,13 @@ type CropModalProps = {
   onSave: (finalCrops: CropData) => void
 }
 
-function CropModal({ mediaUrl, cropDefinitions, initialCropData, onClose, onSave }: CropModalProps) {
+function CropModal({
+  mediaUrl,
+  cropDefinitions,
+  initialCropData,
+  onClose,
+  onSave,
+}: CropModalProps) {
   const [activeTab, setActiveTab] = useState<string>(cropDefinitions[0]?.name ?? '')
   const [pendingCrops, setPendingCrops] = useState<CropData>(initialCropData)
   const [percentCrop, setPercentCrop] = useState<PercentCrop | undefined>()
@@ -373,7 +381,9 @@ export function CropImageField({
                     </div>
                   )}
                   <span className={styles.cropCardLabel}>{def.label}</span>
-                  <span className={styles.cropCardSize}>{def.width}×{def.height}</span>
+                  <span className={styles.cropCardSize}>
+                    {def.width}×{def.height}
+                  </span>
                 </div>
               )
             })}

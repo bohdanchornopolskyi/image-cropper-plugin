@@ -2,26 +2,28 @@ import type { PayloadHandler } from 'payload'
 
 import fs from 'fs'
 import path from 'path'
-
 import sharp from 'sharp'
 
 import type { CropCoords, ImageFormat } from './types.js'
+
 import { isRecord } from './isRecord.js'
 
 type GenerateCropBody = {
-  mediaId: string | number
-  cropName: string
   cropData: CropCoords
-  outputWidth: number
-  outputHeight: number
-  quality?: number
+  cropName: string
   format?: ImageFormat
+  mediaId: number | string
+  outputHeight: number
+  outputWidth: number
+  quality?: number
 }
 
 const VALID_FORMATS: readonly ImageFormat[] = ['webp', 'jpeg', 'png']
 
 function isCropCoords(v: unknown): v is CropCoords {
-  if (!isRecord(v)) return false
+  if (!isRecord(v)) {
+    return false
+  }
   return (
     typeof v.x === 'number' &&
     typeof v.y === 'number' &&
@@ -31,9 +33,12 @@ function isCropCoords(v: unknown): v is CropCoords {
 }
 
 function isGenerateCropBody(v: unknown): v is GenerateCropBody {
-  if (!isRecord(v)) return false
-  if (typeof v.format !== 'undefined' && !VALID_FORMATS.includes(v.format as ImageFormat))
+  if (!isRecord(v)) {
     return false
+  }
+  if (typeof v.format !== 'undefined' && !VALID_FORMATS.includes(v.format as ImageFormat)) {
+    return false
+  }
   return (
     (typeof v.mediaId === 'string' || typeof v.mediaId === 'number') &&
     typeof v.cropName === 'string' &&
@@ -44,12 +49,19 @@ function isGenerateCropBody(v: unknown): v is GenerateCropBody {
 }
 
 function applyFormat(pipeline: sharp.Sharp, format: ImageFormat, quality: number): sharp.Sharp {
-  if (format === 'jpeg') return pipeline.jpeg({ quality })
-  if (format === 'png') return pipeline.png()
+  if (format === 'jpeg') {
+    return pipeline.jpeg({ quality })
+  }
+  if (format === 'png') {
+    return pipeline.png()
+  }
   return pipeline.webp({ quality })
 }
 
-export function makeGenerateCropHandler(mediaDir: string, mediaCollectionSlug: string): PayloadHandler {
+export function makeGenerateCropHandler(
+  mediaDir: string,
+  mediaCollectionSlug: string,
+): PayloadHandler {
   const mediaDirBase = path.basename(mediaDir)
 
   return async (req) => {
@@ -64,23 +76,23 @@ export function makeGenerateCropHandler(mediaDir: string, mediaCollectionSlug: s
     }
 
     const {
-      mediaId,
-      cropName,
       cropData,
-      outputWidth,
-      outputHeight,
-      quality = 80,
+      cropName,
       format = 'webp',
+      mediaId,
+      outputHeight,
+      outputWidth,
+      quality = 80,
     } = rawBody
 
     const mediaDoc = await req.payload.findByID({
-      collection: mediaCollectionSlug,
       id: mediaId,
+      collection: mediaCollectionSlug,
       overrideAccess: false,
       req,
     })
 
-    const { filename, width: originalWidth, height: originalHeight } = mediaDoc ?? {}
+    const { filename, height: originalHeight, width: originalWidth } = mediaDoc ?? {}
 
     if (!filename) {
       return Response.json({ error: 'Media not found' }, { status: 404 })
@@ -136,7 +148,7 @@ export function makeGenerateCropHandler(mediaDir: string, mediaCollectionSlug: s
 
     try {
       const pipeline = sharp(sourceFilePath)
-        .extract({ left, top, width: cropW, height: cropH })
+        .extract({ height: cropH, left, top, width: cropW })
         .resize(outputWidth, outputHeight, { fit: 'fill' })
 
       await applyFormat(pipeline, format, quality).toFile(outputFilePath)

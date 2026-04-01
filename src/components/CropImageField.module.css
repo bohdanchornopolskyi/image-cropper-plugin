@@ -154,7 +154,9 @@
   border: none;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s, opacity 0.15s;
+  transition:
+    background 0.15s,
+    opacity 0.15s;
   background: var(--theme-text, #fff);
   color: var(--theme-bg, #0d0d0d);
 }
@@ -180,7 +182,9 @@
   border: 1px solid var(--theme-elevation-200, rgba(255, 255, 255, 0.15));
   cursor: pointer;
   white-space: nowrap;
-  transition: border-color 0.15s, opacity 0.15s;
+  transition:
+    border-color 0.15s,
+    opacity 0.15s;
   background: transparent;
   color: var(--theme-text, #fff);
 }
@@ -257,7 +261,9 @@
   border-radius: 4px;
   font-size: 16px;
   line-height: 1;
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
 }
 
 .modalClose:hover {

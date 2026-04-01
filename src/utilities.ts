@@ -1,4 +1,5 @@
 import type { CropImageValue } from './types.js'
+
 import { isRecord } from './isRecord.js'
 
 /**
@@ -9,12 +10,16 @@ import { isRecord } from './isRecord.js'
  * @param cropName  The slot name (must match a CropDefinition.name)
  */
 export function getCropUrl(value: CropImageValue | null | undefined, cropName: string): string {
-  if (!value) return ''
+  if (!value) {
+    return ''
+  }
 
   const urls = value.generatedUrls
   if (isRecord(urls)) {
     const url = urls[cropName]
-    if (typeof url === 'string') return url
+    if (typeof url === 'string') {
+      return url
+    }
   }
 
   const img = value.image
@@ -36,27 +41,31 @@ export function getCropUrl(value: CropImageValue | null | undefined, cropName: s
  *                    object so it matches the actual output dimensions exactly
  */
 export function resolveMediaCrop<
-  T extends { url?: string | null; width?: number | null; height?: number | null },
+  T extends { height?: null | number; url?: null | string; width?: null | number },
 >(
   value:
-    | { image?: T | number | null; cropData?: unknown; generatedUrls?: unknown }
+    | { cropData?: unknown; generatedUrls?: unknown; image?: null | number | T }
     | null
     | undefined,
   cropName: string,
-  outputSize?: { width: number; height: number },
-): T | null {
-  if (!value) return null
+  outputSize?: { height: number; width: number },
+): null | T {
+  if (!value) {
+    return null
+  }
 
   const imageValue = value.image
-  const imageDoc: T | null =
+  const imageDoc: null | T =
     imageValue != null && typeof imageValue !== 'number' ? imageValue : null
 
   const url = getCropUrl(value, cropName)
-  if (!url || !imageDoc) return imageDoc
+  if (!url || !imageDoc) {
+    return imageDoc
+  }
 
   return {
     ...imageDoc,
     url,
-    ...(outputSize ? { width: outputSize.width, height: outputSize.height } : {}),
+    ...(outputSize ? { height: outputSize.height, width: outputSize.width } : {}),
   }
 }

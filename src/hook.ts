@@ -6,7 +6,9 @@ import path from 'path'
 export function makeDeleteOrphanedCrops(mediaDir: string): CollectionAfterDeleteHook {
   return async ({ doc }) => {
     const filename = doc.filename
-    if (typeof filename !== 'string' || !filename) return
+    if (typeof filename !== 'string' || !filename) {
+      return
+    }
 
     const base = path.basename(filename, path.extname(filename))
     const cropPrefix = `${base}-crop-`
