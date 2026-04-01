@@ -9,7 +9,7 @@ const nextConfig = {
   turbopack: {
     // Turbopack equivalent of webpack's resolve.extensionAlias:
     // allows importing ./foo.js when the file on disk is ./foo.ts
-    extensionAliasMap: {
+    extensionAlias: {
       '.cjs': ['.cts', '.cjs'],
       '.js': ['.ts', '.tsx', '.js', '.jsx'],
       '.mjs': ['.mts', '.mjs'],
