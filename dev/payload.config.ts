@@ -3,7 +3,7 @@ import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { MongoMemoryReplSet } from 'mongodb-memory-server'
 import path from 'path'
 import { buildConfig } from 'payload'
-import { imageCropperPlugin } from 'image-cropper-plugin'
+import { cropImagePlugin, cropImageField } from 'image-cropper-plugin'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
@@ -38,7 +38,28 @@ const buildConfigWithMemoryDB = async () => {
     collections: [
       {
         slug: 'posts',
-        fields: [],
+        fields: [
+          cropImageField({
+            name: 'heroImage',
+            label: 'Hero Image',
+            crops: [
+              {
+                name: 'desktop',
+                label: 'Desktop',
+                aspectRatio: 16 / 9,
+                width: 1920,
+                height: 1080,
+              },
+              {
+                name: 'mobile',
+                label: 'Mobile',
+                aspectRatio: 9 / 16,
+                width: 828,
+                height: 1470,
+              },
+            ],
+          }),
+        ],
       },
       {
         slug: 'media',
@@ -58,10 +79,9 @@ const buildConfigWithMemoryDB = async () => {
       await seed(payload)
     },
     plugins: [
-      imageCropperPlugin({
-        collections: {
-          posts: true,
-        },
+      cropImagePlugin({
+        mediaCollectionSlug: 'media',
+        mediaDir: path.resolve(dirname, 'media'),
       }),
     ],
     secret: process.env.PAYLOAD_SECRET || 'test-secret_key',

@@ -1,113 +1,91 @@
-import type { CollectionSlug, Config } from 'payload'
+import type { Config, Field, Plugin } from 'payload'
+import path from 'path'
 
-import { customEndpointHandler } from './endpoints/customEndpointHandler.js'
+import type { CropImageFieldConfig, CropImagePluginConfig } from './types.js'
+import { makeGenerateCropHandler } from './handler.js'
+import { makeDeleteOrphanedCrops } from './hook.js'
 
-export type ImageCropperPluginConfig = {
-  /**
-   * List of collections to add a custom field
-   */
-  collections?: Partial<Record<CollectionSlug, true>>
-  disabled?: boolean
+export type {
+  CropDefinition,
+  CropImagePluginConfig,
+  CropImageFieldConfig,
+  CropImageValue,
+  CropData,
+  CropCoords,
+  GeneratedUrls,
+  ImageFormat,
+} from './types.js'
+
+export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugin {
+  const mediaSlug = pluginConfig.mediaCollectionSlug ?? 'media'
+  const mediaDir = pluginConfig.mediaDir ?? path.join(process.cwd(), 'public/media')
+
+  return (incomingConfig: Config): Config => {
+    const collections = (incomingConfig.collections ?? []).map((collection) => {
+      if (collection.slug !== mediaSlug) return collection
+
+      return {
+        ...collection,
+        endpoints: [
+          ...(collection.endpoints ?? []),
+          {
+            path: '/generate-crop',
+            method: 'post' as const,
+            handler: makeGenerateCropHandler(mediaDir, mediaSlug),
+          },
+        ],
+        hooks: {
+          ...collection.hooks,
+          afterDelete: [
+            ...(collection.hooks?.afterDelete ?? []),
+            makeDeleteOrphanedCrops(mediaDir),
+          ],
+        },
+      }
+    })
+
+    return { ...incomingConfig, collections }
+  }
 }
 
-export const imageCropperPlugin =
-  (pluginOptions: ImageCropperPluginConfig) =>
-  (config: Config): Config => {
-    if (!config.collections) {
-      config.collections = []
-    }
+export function cropImageField(config: CropImageFieldConfig): Field {
+  const mediaSlug = config.mediaCollectionSlug ?? 'media'
 
-    config.collections.push({
-      slug: 'plugin-collection',
-      fields: [
-        {
-          name: 'id',
-          type: 'text',
-        },
-      ],
-    })
-
-    if (pluginOptions.collections) {
-      for (const collectionSlug in pluginOptions.collections) {
-        const collection = config.collections.find(
-          (collection) => collection.slug === collectionSlug,
-        )
-
-        if (collection) {
-          collection.fields.push({
-            name: 'addedByPlugin',
-            type: 'text',
-            admin: {
-              position: 'sidebar',
-            },
-          })
-        }
-      }
-    }
-
-    /**
-     * If the plugin is disabled, we still want to keep added collections/fields so the database schema is consistent which is important for migrations.
-     * If your plugin heavily modifies the database schema, you may want to remove this property.
-     */
-    if (pluginOptions.disabled) {
-      return config
-    }
-
-    if (!config.endpoints) {
-      config.endpoints = []
-    }
-
-    if (!config.admin) {
-      config.admin = {}
-    }
-
-    if (!config.admin.components) {
-      config.admin.components = {}
-    }
-
-    if (!config.admin.components.beforeDashboard) {
-      config.admin.components.beforeDashboard = []
-    }
-
-    config.admin.components.beforeDashboard.push(
-      `image-cropper-plugin/client#BeforeDashboardClient`,
-    )
-    config.admin.components.beforeDashboard.push(
-      `image-cropper-plugin/rsc#BeforeDashboardServer`,
-    )
-
-    config.endpoints.push({
-      handler: customEndpointHandler,
-      method: 'get',
-      path: '/my-plugin-endpoint',
-    })
-
-    const incomingOnInit = config.onInit
-
-    config.onInit = async (payload) => {
-      // Ensure we are executing any existing onInit functions before running our own.
-      if (incomingOnInit) {
-        await incomingOnInit(payload)
-      }
-
-      const { totalDocs } = await payload.count({
-        collection: 'plugin-collection',
-        where: {
-          id: {
-            equals: 'seeded-by-plugin',
+  return {
+    name: config.name,
+    type: 'group',
+    label: config.label ?? false,
+    fields: [
+      {
+        name: 'image',
+        type: 'upload',
+        relationTo: mediaSlug,
+        required: config.required ?? false,
+      },
+      {
+        name: 'cropData',
+        type: 'json',
+      },
+      {
+        name: 'generatedUrls',
+        type: 'json',
+      },
+    ],
+    admin: {
+      condition: config.admin?.condition,
+      description: config.admin?.description,
+      components: {
+        Field: {
+          path: 'image-cropper-plugin/client#CropImageField',
+          exportName: 'CropImageField',
+          clientProps: {
+            cropDefinitions: config.crops,
+            fieldLabel: config.label ?? config.name,
+            mediaCollectionSlug: mediaSlug,
+            generateCropEndpoint: `/api/${mediaSlug}/generate-crop`,
           },
         },
-      })
-
-      if (totalDocs === 0) {
-        await payload.create({
-          collection: 'plugin-collection',
-          data: {
-            id: 'seeded-by-plugin',
-          },
-        })
-      }
-    }
-
-    return config
+      },
+    },
   }
+}
