@@ -6,6 +6,15 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  turbopack: {
+    // Turbopack equivalent of webpack's resolve.extensionAlias:
+    // allows importing ./foo.js when the file on disk is ./foo.ts
+    extensionAliasMap: {
+      '.cjs': ['.cts', '.cjs'],
+      '.js': ['.ts', '.tsx', '.js', '.jsx'],
+      '.mjs': ['.mts', '.mjs'],
+    },
+  },
   webpack: (webpackConfig) => {
     webpackConfig.resolve.extensionAlias = {
       '.cjs': ['.cts', '.cjs'],
