@@ -25,8 +25,8 @@
       "image-cropper-plugin/client": [
         "../src/exports/client.ts"
       ],
-      "image-cropper-plugin/rsc": [
-        "../src/exports/rsc.ts"
+      "image-cropper-plugin/utilities": [
+        "../src/exports/utilities.ts"
       ]
     },
     "noEmit": true,

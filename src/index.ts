@@ -1,17 +1,19 @@
 import type { Config, Field, Plugin } from 'payload'
+
 import path from 'path'
 
 import type { CropImageFieldConfig, CropImagePluginConfig } from './types.js'
+
 import { makeGenerateCropHandler } from './handler.js'
 import { makeDeleteOrphanedCrops } from './hook.js'
 
 export type {
-  CropDefinition,
-  CropImagePluginConfig,
-  CropImageFieldConfig,
-  CropImageValue,
-  CropData,
   CropCoords,
+  CropData,
+  CropDefinition,
+  CropImageFieldConfig,
+  CropImagePluginConfig,
+  CropImageValue,
   GeneratedUrls,
   ImageFormat,
 } from './types.js'
@@ -22,16 +24,18 @@ export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugi
 
   return (incomingConfig: Config): Config => {
     const collections = (incomingConfig.collections ?? []).map((collection) => {
-      if (collection.slug !== mediaSlug) return collection
+      if (collection.slug !== mediaSlug) {
+        return collection
+      }
 
       return {
         ...collection,
         endpoints: [
-          ...(collection.endpoints ?? []),
+          ...(Array.isArray(collection.endpoints) ? collection.endpoints : []),
           {
-            path: '/generate-crop',
-            method: 'post' as const,
             handler: makeGenerateCropHandler(mediaDir, mediaSlug),
+            method: 'post' as const,
+            path: '/generate-crop',
           },
         ],
         hooks: {
@@ -54,7 +58,22 @@ export function cropImageField(config: CropImageFieldConfig): Field {
   return {
     name: config.name,
     type: 'group',
-    label: config.label ?? false,
+    admin: {
+      components: {
+        Field: {
+          clientProps: {
+            cropDefinitions: config.crops,
+            fieldLabel: config.label ?? config.name,
+            generateCropEndpoint: `/api/${mediaSlug}/generate-crop`,
+            mediaCollectionSlug: mediaSlug,
+          },
+          exportName: 'CropImageField',
+          path: 'image-cropper-plugin/client#CropImageField',
+        },
+      },
+      condition: config.admin?.condition,
+      description: config.admin?.description,
+    },
     fields: [
       {
         name: 'image',
@@ -71,21 +90,6 @@ export function cropImageField(config: CropImageFieldConfig): Field {
         type: 'json',
       },
     ],
-    admin: {
-      condition: config.admin?.condition,
-      description: config.admin?.description,
-      components: {
-        Field: {
-          path: 'image-cropper-plugin/client#CropImageField',
-          exportName: 'CropImageField',
-          clientProps: {
-            cropDefinitions: config.crops,
-            fieldLabel: config.label ?? config.name,
-            mediaCollectionSlug: mediaSlug,
-            generateCropEndpoint: `/api/${mediaSlug}/generate-crop`,
-          },
-        },
-      },
-    },
+    label: config.label ?? false,
   }
 }
