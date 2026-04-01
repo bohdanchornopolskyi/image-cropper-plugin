@@ -1,9 +1,9 @@
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
+import { cropImageField, cropImagePlugin } from 'image-cropper-plugin'
 import { MongoMemoryReplSet } from 'mongodb-memory-server'
 import path from 'path'
 import { buildConfig } from 'payload'
-import { cropImagePlugin, cropImageField } from 'image-cropper-plugin'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
@@ -41,23 +41,23 @@ const buildConfigWithMemoryDB = async () => {
         fields: [
           cropImageField({
             name: 'heroImage',
-            label: 'Hero Image',
             crops: [
               {
                 name: 'desktop',
-                label: 'Desktop',
                 aspectRatio: 16 / 9,
-                width: 1920,
                 height: 1080,
+                label: 'Desktop',
+                width: 1920,
               },
               {
                 name: 'mobile',
-                label: 'Mobile',
                 aspectRatio: 9 / 16,
-                width: 828,
                 height: 1470,
+                label: 'Mobile',
+                width: 828,
               },
             ],
+            label: 'Hero Image',
           }),
         ],
       },
