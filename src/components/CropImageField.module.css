@@ -16,52 +16,41 @@
   color: var(--theme-elevation-400, #999);
 }
 
-.empty {
+/* ── Filled state ──────────────────────────────────────────────────────────── */
+
+.selectedWrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.selectedHeader {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 24px 16px;
-  border: 1px dashed var(--theme-elevation-150, rgba(255, 255, 255, 0.15));
-  border-radius: var(--style-radius-m, 4px);
-  background: var(--theme-elevation-50, rgba(255, 255, 255, 0.03));
+  gap: 12px;
+  padding: calc(var(--base, 8px) * 0.9) calc(var(--base, 8px) * 1.2);
+  position: relative;
 }
 
-.selected {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 12px 14px;
-  border: 1px solid var(--theme-elevation-150, rgba(255, 255, 255, 0.12));
-  border-radius: var(--style-radius-m, 4px);
-  background: var(--theme-elevation-50, rgba(255, 255, 255, 0.03));
-}
-
-.thumbnail {
+.thumb {
   flex-shrink: 0;
-  width: 96px;
-  height: 72px;
+  width: 48px;
+  height: 48px;
   border-radius: var(--style-radius-s, 3px);
-  overflow: hidden;
+  object-fit: cover;
+  display: block;
   background: var(--theme-elevation-100, rgba(255, 255, 255, 0.06));
 }
 
-.thumbnailImg {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.info {
+.mainDetail {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 3px;
 }
 
 .filename {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--theme-text, #fff);
   overflow: hidden;
@@ -69,16 +58,9 @@
   white-space: nowrap;
 }
 
-.dot {
-  flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--theme-elevation-300, rgba(255, 255, 255, 0.25));
-}
-
-.dotSet {
-  background: var(--theme-success-500, #46c263);
+.fileMeta {
+  font-size: 12px;
+  color: var(--theme-elevation-500, rgba(255, 255, 255, 0.5));
 }
 
 .generating {
@@ -87,11 +69,50 @@
   font-style: italic;
 }
 
+/* ── Icon action buttons ───────────────────────────────────────────────────── */
+
+.iconActions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--theme-border-color, rgba(255, 255, 255, 0.15));
+  background: var(--theme-input-bg, rgba(255, 255, 255, 0.03));
+  border-radius: var(--style-radius-s, 3px);
+  cursor: pointer;
+  color: var(--theme-elevation-600, rgba(255, 255, 255, 0.6));
+  box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
+  transition:
+    border-color 0.1s,
+    color 0.1s;
+}
+
+.iconBtn:not(:disabled):hover {
+  border-color: var(--theme-elevation-400, rgba(255, 255, 255, 0.35));
+  color: var(--theme-text, #fff);
+}
+
+.iconBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── Crop preview cards ────────────────────────────────────────────────────── */
+
 .cropCards {
   display: flex;
   gap: 10px;
   flex-shrink: 0;
-  align-items: flex-start;
+  padding: 10px calc(var(--base, 8px) * 1.2);
+  border-top: 1px solid var(--theme-border-color, rgba(255, 255, 255, 0.1));
 }
 
 .cropCard {
@@ -135,78 +156,19 @@
   white-space: nowrap;
 }
 
-.actions {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-top: 2px;
+.dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--theme-elevation-300, rgba(255, 255, 255, 0.25));
 }
 
-.btnPrimary {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 28px;
-  padding: 0 10px;
-  font-size: 11.5px;
-  font-weight: 500;
-  border-radius: var(--style-radius-s, 3px);
-  border: none;
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    background 0.15s,
-    opacity 0.15s;
-  background: var(--theme-text, #fff);
-  color: var(--theme-bg, #0d0d0d);
+.dotSet {
+  background: var(--theme-success-500, #46c263);
 }
 
-.btnPrimary:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.btnPrimary:not(:disabled):hover {
-  opacity: 0.88;
-}
-
-.btnGhost {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 28px;
-  padding: 0 10px;
-  font-size: 11.5px;
-  font-weight: 500;
-  border-radius: var(--style-radius-s, 3px);
-  border: 1px solid var(--theme-elevation-200, rgba(255, 255, 255, 0.15));
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    border-color 0.15s,
-    opacity 0.15s;
-  background: transparent;
-  color: var(--theme-text, #fff);
-}
-
-.btnGhost:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.btnGhost:not(:disabled):hover {
-  border-color: var(--theme-elevation-400, rgba(255, 255, 255, 0.35));
-}
-
-.btnDanger {
-  composes: btnGhost;
-  color: var(--theme-error-500, #f44336);
-  border-color: transparent;
-}
-
-.btnDanger:not(:disabled):hover {
-  border-color: var(--theme-error-500, #f44336);
-}
+/* ── Crop modal ────────────────────────────────────────────────────────────── */
 
 .backdrop {
   position: fixed;
@@ -345,6 +307,46 @@
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.btnPrimary {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--style-radius-s, 3px);
+  border: none;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    opacity 0.15s;
+  background: var(--theme-text, #fff);
+  color: var(--theme-bg, #0d0d0d);
+}
+
+.btnPrimary:not(:disabled):hover {
+  opacity: 0.88;
+}
+
+.btnGhost {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--style-radius-s, 3px);
+  border: 1px solid var(--theme-elevation-200, rgba(255, 255, 255, 0.15));
+  cursor: pointer;
+  transition: border-color 0.15s;
+  background: transparent;
+  color: var(--theme-text, #fff);
+}
+
+.btnGhost:not(:disabled):hover {
+  border-color: var(--theme-elevation-400, rgba(255, 255, 255, 0.35));
 }
 
 .cropArea :global(.ReactCrop__child-wrapper) {

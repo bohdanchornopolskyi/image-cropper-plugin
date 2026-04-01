@@ -1,10 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import ReactCrop, { centerCrop, makeAspectCrop, type PercentCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
-import { useField, useListDrawer } from '@payloadcms/ui'
+import { Button, useDocumentDrawer, useField, useListDrawer } from '@payloadcms/ui'
 
 import type { CropCoords, CropData, CropDefinition, GeneratedUrls } from '../types.js'
 import { isRecord } from '../isRecord.js'
@@ -16,8 +16,9 @@ type MediaDoc = {
   width?: number | null
   height?: number | null
   filename?: string | null
+  filesize?: number | null
+  mimeType?: string | null
   alt?: string | null
-  updatedAt?: string | null
 }
 
 type Props = {
@@ -33,6 +34,68 @@ function isMediaDoc(v: unknown): v is MediaDoc {
   return isRecord(v) && 'id' in v
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)}MB`
+  return `${Math.round(bytes / 1_000)}KB`
+}
+
+function Icon({
+  children,
+  strokeLinejoin,
+  strokeWidth = '1.5',
+}: {
+  children: ReactNode
+  strokeLinejoin?: 'round'
+  strokeWidth?: string
+}) {
+  return (
+    <svg
+      fill="none"
+      height="16"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin={strokeLinejoin}
+      strokeWidth={strokeWidth}
+      viewBox="0 0 24 24"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {children}
+    </svg>
+  )
+}
+
+function CropIcon() {
+  return (
+    <Icon>
+      <polyline points="6,2 6,18 22,18" />
+      <polyline points="2,6 18,6 18,22" />
+    </Icon>
+  )
+}
+
+function EditSvg() {
+  return (
+    <Icon strokeLinejoin="round">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </Icon>
+  )
+}
+
+function XSvg() {
+  return (
+    <Icon strokeWidth="2">
+      <line x1="18" x2="6" y1="6" y2="18" />
+      <line x1="6" x2="18" y1="6" y2="18" />
+    </Icon>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Crop modal
+// ---------------------------------------------------------------------------
+
 function initCrop(
   mediaWidth: number,
   mediaHeight: number,
@@ -40,13 +103,7 @@ function initCrop(
   existing: CropCoords | undefined,
 ): PercentCrop {
   if (existing) {
-    return {
-      unit: '%',
-      x: existing.x,
-      y: existing.y,
-      width: existing.width,
-      height: existing.height,
-    }
+    return { unit: '%', x: existing.x, y: existing.y, width: existing.width, height: existing.height }
   }
   if (aspect) {
     return centerCrop(
@@ -63,20 +120,14 @@ function percentCropToCoords(pct: PercentCrop): CropCoords {
 }
 
 type CropModalProps = {
-  mediaUrl: string
   cropDefinitions: CropDefinition[]
   initialCropData: CropData
+  mediaUrl: string
   onClose: () => void
   onSave: (finalCrops: CropData) => void
 }
 
-function CropModal({
-  mediaUrl,
-  cropDefinitions,
-  initialCropData,
-  onClose,
-  onSave,
-}: CropModalProps) {
+function CropModal({ cropDefinitions, initialCropData, mediaUrl, onClose, onSave }: CropModalProps) {
   const [activeTab, setActiveTab] = useState<string>(cropDefinitions[0]?.name ?? '')
   const [pendingCrops, setPendingCrops] = useState<CropData>(initialCropData)
   const [percentCrop, setPercentCrop] = useState<PercentCrop | undefined>()
@@ -119,7 +170,12 @@ function CropModal({
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
           <h2 className={styles.modalTitle}>Crop Image</h2>
-          <button type="button" className={styles.modalClose} onClick={onClose} aria-label="Close">
+          <button
+            aria-label="Close"
+            className={styles.modalClose}
+            onClick={onClose}
+            type="button"
+          >
             ✕
           </button>
         </div>
@@ -127,10 +183,10 @@ function CropModal({
         <div className={styles.tabs}>
           {cropDefinitions.map((def) => (
             <button
-              key={def.name}
-              type="button"
               className={`${styles.tab}${activeTab === def.name ? ` ${styles.tabActive}` : ''}`}
+              key={def.name}
               onClick={() => switchTab(def.name)}
+              type="button"
             >
               {def.label}
             </button>
@@ -139,19 +195,19 @@ function CropModal({
 
         <div className={styles.cropArea}>
           <ReactCrop
-            crop={percentCrop}
-            onChange={(_, pct) => setPercentCrop(pct)}
             aspect={activeDef?.aspectRatio}
+            crop={percentCrop}
             keepSelection
+            onChange={(_, pct) => setPercentCrop(pct)}
           >
             <img
-              ref={imgRef}
-              src={mediaUrl}
               alt="Crop source"
-              onLoad={onImageLoad}
               className={styles.cropImg}
               crossOrigin="anonymous"
               draggable={false}
+              onLoad={onImageLoad}
+              ref={imgRef}
+              src={mediaUrl}
             />
           </ReactCrop>
         </div>
@@ -161,10 +217,10 @@ function CropModal({
             {activeDef && `${activeDef.label} — ${activeDef.width} × ${activeDef.height} px`}
           </span>
           <div className={styles.footerActions}>
-            <button type="button" className={styles.btnGhost} onClick={onClose}>
+            <button className={styles.btnGhost} onClick={onClose} type="button">
               Cancel
             </button>
-            <button type="button" className={styles.btnPrimary} onClick={handleSave}>
+            <button className={styles.btnPrimary} onClick={handleSave} type="button">
               Save &amp; Generate
             </button>
           </div>
@@ -174,6 +230,10 @@ function CropModal({
     document.body,
   )
 }
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 
 export function CropImageField({
   path,
@@ -196,42 +256,53 @@ export function CropImageField({
   })
 
   const imageDoc: MediaDoc | null =
-    imageRaw !== null && typeof imageRaw !== 'number' ? imageRaw : null
+    imageRaw !== null && typeof imageRaw !== 'number' && typeof imageRaw !== 'string'
+      ? imageRaw
+      : null
   const imageId: number | string | null =
-    imageDoc?.id ?? (typeof imageRaw === 'number' ? imageRaw : null)
+    imageDoc?.id ??
+    (typeof imageRaw === 'number' || typeof imageRaw === 'string' ? imageRaw : null)
 
   const [fetchedDoc, setFetchedDoc] = useState<MediaDoc | null>(null)
-  const imageDocRef = useRef(imageDoc)
-  imageDocRef.current = imageDoc
 
+  // imageDoc from Payload's form store may be incomplete (only {id}, no url/filename)
+  // when the form loads from the DB — always fetch the full doc when imageId changes.
   useEffect(() => {
-    if (!imageId || imageDocRef.current) {
+    if (!imageId) {
       setFetchedDoc(null)
       return
     }
-    fetch(`/api/${mediaCollectionSlug}/${imageId}?depth=0`)
+    const controller = new AbortController()
+    fetch(`/api/${mediaCollectionSlug}/${imageId}?depth=0`, { signal: controller.signal })
       .then((r) => r.json())
       .then((data: unknown) => {
         if (isMediaDoc(data)) setFetchedDoc(data)
       })
       .catch(() => null)
+    return () => controller.abort()
   }, [imageId, mediaCollectionSlug])
 
-  const media: MediaDoc | null = imageDoc ?? fetchedDoc
+  // fetchedDoc takes priority: it always has all fields; imageDoc may have only {id}.
+  const media: MediaDoc | null = imageId ? fetchedDoc ?? imageDoc : null
 
-  const [ListDrawer, , { openDrawer: openMediaDrawer, closeDrawer: closeMediaDrawer }] =
-    useListDrawer({ collectionSlugs: [mediaCollectionSlug] })
+  const [ListDrawer, , { openDrawer: openMediaDrawer, closeDrawer: closeMediaDrawer }] = useListDrawer({
+    collectionSlugs: [mediaCollectionSlug],
+  })
 
-  const handleSelect = useCallback(
-    ({ docID, doc }: { collectionSlug: string; docID: string; doc: Record<string, unknown> }) => {
+  const [CreateMediaDrawer, , { openDrawer: openCreateDrawer, closeDrawer: closeCreateDrawer }] =
+    useDocumentDrawer({ collectionSlug: mediaCollectionSlug })
+
+  const selectDoc = useCallback(
+    (doc: Record<string, unknown>, docID: string) => {
       const newDoc: MediaDoc = {
         id: typeof doc.id === 'number' || typeof doc.id === 'string' ? doc.id : docID,
         url: typeof doc.url === 'string' ? doc.url : null,
         width: typeof doc.width === 'number' ? doc.width : null,
         height: typeof doc.height === 'number' ? doc.height : null,
         filename: typeof doc.filename === 'string' ? doc.filename : null,
+        filesize: typeof doc.filesize === 'number' ? doc.filesize : null,
+        mimeType: typeof doc.mimeType === 'string' ? doc.mimeType : null,
         alt: typeof doc.alt === 'string' ? doc.alt : null,
-        updatedAt: typeof doc.updatedAt === 'string' ? doc.updatedAt : null,
       }
       if (String(newDoc.id) !== String(imageId)) {
         setCropData(null)
@@ -239,10 +310,28 @@ export function CropImageField({
       }
       setImageValue(newDoc)
       setFetchedDoc(newDoc)
-      closeMediaDrawer()
       setModalOpen(true)
     },
-    [imageId, setImageValue, setCropData, setGeneratedUrls, closeMediaDrawer],
+    [imageId, setImageValue, setCropData, setGeneratedUrls],
+  )
+
+  const handleListSelect = useCallback(
+    ({ docID, doc }: { collectionSlug: string; docID: string; doc: Record<string, unknown> }) => {
+      closeMediaDrawer()
+      selectDoc(doc, docID)
+    },
+    [selectDoc, closeMediaDrawer],
+  )
+
+  const handleDocCreate = useCallback(
+    ({ doc }: { doc: { id?: string | number; [key: string]: unknown } }) => {
+      const id = typeof doc.id === 'string' || typeof doc.id === 'number' ? String(doc.id) : ''
+      if (id) {
+        selectDoc(doc, id)
+        closeCreateDrawer()
+      }
+    },
+    [selectDoc, closeCreateDrawer],
   )
 
   const [modalOpen, setModalOpen] = useState(false)
@@ -261,18 +350,18 @@ export function CropImageField({
         if (!coords) return []
         return [
           fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
             body: JSON.stringify({
-              mediaId: media.id,
-              cropName: def.name,
               cropData: coords,
-              outputWidth: def.width,
-              outputHeight: def.height,
-              quality: def.quality ?? 80,
+              cropName: def.name,
               format: def.format ?? 'webp',
+              mediaId: media.id,
+              outputHeight: def.height,
+              outputWidth: def.width,
+              quality: def.quality ?? 80,
             }),
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST',
           })
             .then((res) => res.json())
             .then((data: unknown) => {
@@ -307,8 +396,18 @@ export function CropImageField({
 
   const urls = generatedUrls ?? {}
   const crops = cropData ?? {}
-  const allCropsReady = cropDefinitions.every((d) => urls[d.name])
   const anyCropSet = cropDefinitions.some((d) => crops[d.name])
+  const allCropsReady = cropDefinitions.every((d) => urls[d.name])
+
+  const fileMeta = media
+    ? [
+        media.filesize ? formatFileSize(media.filesize) : null,
+        media.width && media.height ? `${media.width}×${media.height}` : null,
+        media.mimeType ?? null,
+      ]
+        .filter(Boolean)
+        .join(' — ')
+    : null
 
   return (
     <div className={styles.wrap}>
@@ -317,91 +416,117 @@ export function CropImageField({
       </div>
 
       {!media ? (
-        <div className={styles.empty}>
-          <button
-            type="button"
-            className={styles.btnPrimary}
-            onClick={openMediaDrawer}
-            disabled={readOnly}
-          >
-            Select Image
-          </button>
+        <div className="dropzone">
+          <div className="upload__dropzoneContent">
+            <div className="upload__dropzoneContent__buttons">
+              <Button
+                buttonStyle="pill"
+                disabled={readOnly}
+                onClick={openCreateDrawer}
+                size="small"
+                type="button"
+              >
+                Create New
+              </Button>
+              <span className="upload__dropzoneContent__orText">or</span>
+              <Button
+                buttonStyle="pill"
+                disabled={readOnly}
+                onClick={openMediaDrawer}
+                size="small"
+                type="button"
+              >
+                Choose from existing
+              </Button>
+            </div>
+            <p className="upload__dragAndDropText">or drag and drop a file</p>
+          </div>
         </div>
       ) : (
-        <div className={styles.selected}>
-          <div className={styles.thumbnail}>
-            <img src={media.url ?? ''} alt={media.alt ?? ''} className={styles.thumbnailImg} />
-          </div>
+        <div className={`file-details ${styles.selectedWrap}`}>
+          <header className={styles.selectedHeader}>
+            <img
+              alt={media.alt ?? ''}
+              className={styles.thumb}
+              src={media.url ?? ''}
+            />
 
-          <div className={styles.info}>
-            <span className={styles.filename}>{media.filename}</span>
+            <div className={styles.mainDetail}>
+              <span className={styles.filename}>{media.filename}</span>
+              {fileMeta && <span className={styles.fileMeta}>{fileMeta}</span>}
+              {generating && <span className={styles.generating}>Generating crops…</span>}
+            </div>
 
-            {generating && <span className={styles.generating}>Generating crops…</span>}
-
-            <div className={styles.actions}>
+            <div className={styles.iconActions}>
               <button
-                type="button"
-                className={styles.btnPrimary}
-                onClick={() => setModalOpen(true)}
+                className={styles.iconBtn}
                 disabled={readOnly || generating}
+                onClick={() => setModalOpen(true)}
+                title={allCropsReady || anyCropSet ? 'Edit Crops' : 'Crop Image'}
+                type="button"
               >
-                {allCropsReady || anyCropSet ? 'Edit Crops' : 'Crop Image'}
+                <CropIcon />
               </button>
               <button
-                type="button"
-                className={styles.btnGhost}
+                className={styles.iconBtn}
+                disabled={readOnly}
                 onClick={openMediaDrawer}
-                disabled={readOnly}
+                title="Change image"
+                type="button"
               >
-                Change
+                <EditSvg />
               </button>
               <button
-                type="button"
-                className={styles.btnDanger}
-                onClick={remove}
+                className={styles.iconBtn}
                 disabled={readOnly}
+                onClick={remove}
+                title="Remove"
+                type="button"
               >
-                Remove
+                <XSvg />
               </button>
             </div>
-          </div>
+          </header>
 
-          <div className={styles.cropCards}>
-            {cropDefinitions.map((def) => {
-              const url = urls[def.name]
-              return (
-                <div key={def.name} className={styles.cropCard}>
-                  {url ? (
-                    <img src={url} alt={def.label} className={styles.cropCardImg} />
-                  ) : (
-                    <div className={styles.cropCardEmpty}>
-                      <span
-                        className={`${styles.dot}${crops[def.name] ? ` ${styles.dotSet}` : ''}`}
-                      />
-                    </div>
-                  )}
-                  <span className={styles.cropCardLabel}>{def.label}</span>
-                  <span className={styles.cropCardSize}>
-                    {def.width}×{def.height}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
+          {cropDefinitions.length > 0 && (
+            <div className={styles.cropCards}>
+              {cropDefinitions.map((def) => {
+                const url = urls[def.name]
+                return (
+                  <div className={styles.cropCard} key={def.name}>
+                    {url ? (
+                      <img alt={def.label} className={styles.cropCardImg} src={url} />
+                    ) : (
+                      <div className={styles.cropCardEmpty}>
+                        <span
+                          className={`${styles.dot}${crops[def.name] ? ` ${styles.dotSet}` : ''}`}
+                        />
+                      </div>
+                    )}
+                    <span className={styles.cropCardLabel}>{def.label}</span>
+                    <span className={styles.cropCardSize}>
+                      {def.width}×{def.height}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 
       {modalOpen && media?.url && (
         <CropModal
-          mediaUrl={media.url}
           cropDefinitions={cropDefinitions}
           initialCropData={cropData ?? {}}
+          mediaUrl={media.url}
           onClose={() => setModalOpen(false)}
           onSave={handleSave}
         />
       )}
 
-      <ListDrawer onSelect={handleSelect} />
+      <ListDrawer onSelect={handleListSelect} />
+      <CreateMediaDrawer onSave={handleDocCreate} />
     </div>
   )
 }
