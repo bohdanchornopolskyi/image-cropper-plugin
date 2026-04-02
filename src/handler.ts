@@ -132,12 +132,13 @@ export function makeGenerateCropHandler(
 
     let alreadyExists = false
     try {
-      for (const file of await fs.promises.readdir(mediaDir)) {
-        if (file === outputFilename) {
+      const dir = await fs.promises.opendir(mediaDir)
+      for await (const dirent of dir) {
+        if (dirent.name === outputFilename) {
           alreadyExists = true
-        } else if (file.startsWith(slotPrefix)) {
-          await fs.promises.unlink(path.join(mediaDir, file)).catch((e: unknown) => {
-            console.error(`[generateCrop] Failed to delete old crop file ${file}:`, e)
+        } else if (dirent.name.startsWith(slotPrefix)) {
+          await fs.promises.unlink(path.join(mediaDir, dirent.name)).catch((e: unknown) => {
+            console.error(`[generateCrop] Failed to delete old crop file ${dirent.name}:`, e)
           })
         }
       }

@@ -13,21 +13,17 @@ export function makeDeleteOrphanedCrops(mediaDir: string): CollectionAfterDelete
     const base = path.basename(filename, path.extname(filename))
     const cropPrefix = `${base}-crop-`
 
-    let files: string[]
     try {
-      files = await fs.promises.readdir(mediaDir)
-    } catch {
-      return
+      const dir = await fs.promises.opendir(mediaDir)
+      for await (const dirent of dir) {
+        if (dirent.name.startsWith(cropPrefix)) {
+          await fs.promises.unlink(path.join(mediaDir, dirent.name)).catch((e: unknown) => {
+            console.error(`[deleteOrphanedCrops] Failed to delete ${dirent.name}:`, e)
+          })
+        }
+      }
+    } catch (e) {
+      console.error(`[deleteOrphanedCrops] Failed to read media directory:`, e)
     }
-
-    await Promise.all(
-      files
-        .filter((file) => file.startsWith(cropPrefix))
-        .map((file) =>
-          fs.promises.unlink(path.join(mediaDir, file)).catch((e: unknown) => {
-            console.error(`[deleteOrphanedCrops] Failed to delete ${file}:`, e)
-          }),
-        ),
-    )
   }
 }
