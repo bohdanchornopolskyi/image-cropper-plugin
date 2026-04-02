@@ -4,7 +4,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import ReactCrop, { centerCrop, makeAspectCrop, type PercentCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
-import { Button, useDocumentDrawer, useField, useListDrawer } from '@payloadcms/ui'
+import { Button, useDocumentDrawer, useField, useListDrawer, useConfig } from '@payloadcms/ui'
 
 import type { CropCoords, CropData, CropDefinition, GeneratedUrls } from '../types.js'
 import { isRecord } from '../isRecord.js'
@@ -103,7 +103,13 @@ function initCrop(
   existing: CropCoords | undefined,
 ): PercentCrop {
   if (existing) {
-    return { unit: '%', x: existing.x, y: existing.y, width: existing.width, height: existing.height }
+    return {
+      unit: '%',
+      x: existing.x,
+      y: existing.y,
+      width: existing.width,
+      height: existing.height,
+    }
   }
   if (aspect) {
     return centerCrop(
@@ -127,7 +133,13 @@ type CropModalProps = {
   onSave: (finalCrops: CropData) => void
 }
 
-function CropModal({ cropDefinitions, initialCropData, mediaUrl, onClose, onSave }: CropModalProps) {
+function CropModal({
+  cropDefinitions,
+  initialCropData,
+  mediaUrl,
+  onClose,
+  onSave,
+}: CropModalProps) {
   const [activeTab, setActiveTab] = useState<string>(cropDefinitions[0]?.name ?? '')
   const [pendingCrops, setPendingCrops] = useState<CropData>(initialCropData)
   const [percentCrop, setPercentCrop] = useState<PercentCrop | undefined>()
@@ -170,12 +182,7 @@ function CropModal({ cropDefinitions, initialCropData, mediaUrl, onClose, onSave
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
           <h2 className={styles.modalTitle}>Crop Image</h2>
-          <button
-            aria-label="Close"
-            className={styles.modalClose}
-            onClick={onClose}
-            type="button"
-          >
+          <button aria-label="Close" className={styles.modalClose} onClick={onClose} type="button">
             ✕
           </button>
         </div>
@@ -243,7 +250,9 @@ export function CropImageField({
   generateCropEndpoint,
   readOnly,
 }: Props) {
-  const endpoint = generateCropEndpoint ?? `/api/${mediaCollectionSlug}/generate-crop`
+  const { config } = useConfig()
+  const apiRoute = config.routes.api || '/api'
+  const endpoint = generateCropEndpoint ?? `/${apiRoute}/${mediaCollectionSlug}/generate-crop`
 
   const { value: imageRaw, setValue: setImageValue } = useField<MediaDoc | number | null>({
     path: `${path}.image`,
@@ -260,8 +269,7 @@ export function CropImageField({
       ? imageRaw
       : null
   const imageId: number | string | null =
-    imageDoc?.id ??
-    (typeof imageRaw === 'number' || typeof imageRaw === 'string' ? imageRaw : null)
+    imageDoc?.id ?? (typeof imageRaw === 'number' || typeof imageRaw === 'string' ? imageRaw : null)
 
   const [fetchedDoc, setFetchedDoc] = useState<MediaDoc | null>(null)
 
@@ -273,7 +281,7 @@ export function CropImageField({
       return
     }
     const controller = new AbortController()
-    fetch(`/api/${mediaCollectionSlug}/${imageId}?depth=0`, { signal: controller.signal })
+    fetch(`/${apiRoute}/${mediaCollectionSlug}/${imageId}?depth=0`, { signal: controller.signal })
       .then((r) => r.json())
       .then((data: unknown) => {
         if (isMediaDoc(data)) setFetchedDoc(data)
@@ -283,11 +291,12 @@ export function CropImageField({
   }, [imageId, mediaCollectionSlug])
 
   // fetchedDoc takes priority: it always has all fields; imageDoc may have only {id}.
-  const media: MediaDoc | null = imageId ? fetchedDoc ?? imageDoc : null
+  const media: MediaDoc | null = imageId ? (fetchedDoc ?? imageDoc) : null
 
-  const [ListDrawer, , { openDrawer: openMediaDrawer, closeDrawer: closeMediaDrawer }] = useListDrawer({
-    collectionSlugs: [mediaCollectionSlug],
-  })
+  const [ListDrawer, , { openDrawer: openMediaDrawer, closeDrawer: closeMediaDrawer }] =
+    useListDrawer({
+      collectionSlugs: [mediaCollectionSlug],
+    })
 
   const [CreateMediaDrawer, , { openDrawer: openCreateDrawer, closeDrawer: closeCreateDrawer }] =
     useDocumentDrawer({ collectionSlug: mediaCollectionSlug })
@@ -445,11 +454,7 @@ export function CropImageField({
       ) : (
         <div className={`file-details ${styles.selectedWrap}`}>
           <header className={styles.selectedHeader}>
-            <img
-              alt={media.alt ?? ''}
-              className={styles.thumb}
-              src={media.url ?? ''}
-            />
+            <img alt={media.alt ?? ''} className={styles.thumb} src={media.url ?? ''} />
 
             <div className={styles.mainDetail}>
               <span className={styles.filename}>{media.filename}</span>
