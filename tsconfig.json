@@ -1,6 +1,11 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
+    "paths": {
+      "payload-plugin-image-cropper": ["./src/index.ts"],
+      "payload-plugin-image-cropper/client": ["./src/exports/client.ts"],
+      "payload-plugin-image-cropper/utilities": ["./src/exports/utilities.ts"]
+    },
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "rootDir": "./",
     "allowJs": true,

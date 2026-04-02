@@ -19,13 +19,13 @@
       "@payload-config": [
         "./payload.config.ts"
       ],
-      "image-cropper-plugin": [
+      "payload-plugin-image-cropper": [
         "../src/index.ts"
       ],
-      "image-cropper-plugin/client": [
+      "payload-plugin-image-cropper/client": [
         "../src/exports/client.ts"
       ],
-      "image-cropper-plugin/utilities": [
+      "payload-plugin-image-cropper/utilities": [
         "../src/exports/utilities.ts"
       ]
     },

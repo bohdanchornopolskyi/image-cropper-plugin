@@ -1,9 +1,9 @@
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
-import { cropImageField, cropImagePlugin } from 'image-cropper-plugin'
 import { MongoMemoryReplSet } from 'mongodb-memory-server'
 import path from 'path'
 import { buildConfig } from 'payload'
+import { cropImageField, cropImagePlugin } from 'payload-plugin-image-cropper'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 

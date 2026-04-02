@@ -68,7 +68,7 @@ export function cropImageField(config: CropImageFieldConfig): Field {
             mediaCollectionSlug: mediaSlug,
           },
           exportName: 'CropImageField',
-          path: 'image-cropper-plugin/client#CropImageField',
+          path: 'payload-plugin-image-cropper/client#CropImageField',
         },
       },
       condition: config.admin?.condition,
