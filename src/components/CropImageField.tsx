@@ -4,7 +4,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import ReactCrop, { centerCrop, makeAspectCrop, type PercentCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
-import { Button, useDocumentDrawer, useField, useListDrawer, useConfig } from '@payloadcms/ui'
+import { Button, useConfig, useDocumentDrawer, useField, useListDrawer } from '@payloadcms/ui'
 
 import type { CropCoords, CropData, CropDefinition, GeneratedUrls } from '../types.js'
 import { isRecord } from '../isRecord.js'
@@ -26,7 +26,6 @@ type Props = {
   cropDefinitions?: CropDefinition[]
   fieldLabel?: string
   mediaCollectionSlug?: string
-  generateCropEndpoint?: string
   readOnly?: boolean
 }
 
@@ -91,10 +90,6 @@ function XSvg() {
     </Icon>
   )
 }
-
-// ---------------------------------------------------------------------------
-// Crop modal
-// ---------------------------------------------------------------------------
 
 function initCrop(
   mediaWidth: number,
@@ -228,7 +223,7 @@ function CropModal({
               Cancel
             </button>
             <button className={styles.btnPrimary} onClick={handleSave} type="button">
-              Save &amp; Generate
+              Save Crop
             </button>
           </div>
         </div>
@@ -238,21 +233,15 @@ function CropModal({
   )
 }
 
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
-
 export function CropImageField({
   path,
   cropDefinitions = [],
   fieldLabel = 'Image',
   mediaCollectionSlug = 'media',
-  generateCropEndpoint,
   readOnly,
 }: Props) {
   const { config } = useConfig()
   const apiRoute = config.routes.api || '/api'
-  const endpoint = generateCropEndpoint ?? `/${apiRoute}/${mediaCollectionSlug}/generate-crop`
 
   const { value: imageRaw, setValue: setImageValue } = useField<MediaDoc | number | null>({
     path: `${path}.image`,
@@ -264,33 +253,48 @@ export function CropImageField({
     path: `${path}.generatedUrls`,
   })
 
+  const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({})
+  const handleImageLoad = useCallback((key: string) => {
+    setLoadedImages((prev) => {
+      if (prev[key]) return prev
+      return { ...prev, [key]: true }
+    })
+  }, [])
+
+  const checkCache = useCallback(
+    (node: HTMLImageElement | null, key: string) => {
+      if (node && node.complete) {
+        handleImageLoad(key)
+      }
+    },
+    [handleImageLoad],
+  )
+
   const imageDoc: MediaDoc | null =
     imageRaw !== null && typeof imageRaw !== 'number' && typeof imageRaw !== 'string'
       ? imageRaw
       : null
+
   const imageId: number | string | null =
     imageDoc?.id ?? (typeof imageRaw === 'number' || typeof imageRaw === 'string' ? imageRaw : null)
 
   const [fetchedDoc, setFetchedDoc] = useState<MediaDoc | null>(null)
 
-  // imageDoc from Payload's form store may be incomplete (only {id}, no url/filename)
-  // when the form loads from the DB — always fetch the full doc when imageId changes.
   useEffect(() => {
     if (!imageId) {
       setFetchedDoc(null)
       return
     }
     const controller = new AbortController()
-    fetch(`/${apiRoute}/${mediaCollectionSlug}/${imageId}?depth=0`, { signal: controller.signal })
+    fetch(`${apiRoute}/${mediaCollectionSlug}/${imageId}?depth=0`, { signal: controller.signal })
       .then((r) => r.json())
       .then((data: unknown) => {
         if (isMediaDoc(data)) setFetchedDoc(data)
       })
       .catch(() => null)
     return () => controller.abort()
-  }, [imageId, mediaCollectionSlug])
+  }, [imageId, mediaCollectionSlug, apiRoute])
 
-  // fetchedDoc takes priority: it always has all fields; imageDoc may have only {id}.
   const media: MediaDoc | null = imageId ? (fetchedDoc ?? imageDoc) : null
 
   const [ListDrawer, , { openDrawer: openMediaDrawer, closeDrawer: closeMediaDrawer }] =
@@ -316,6 +320,7 @@ export function CropImageField({
       if (String(newDoc.id) !== String(imageId)) {
         setCropData(null)
         setGeneratedUrls(null)
+        setLoadedImages({})
       }
       setImageValue(newDoc)
       setFetchedDoc(newDoc)
@@ -344,56 +349,26 @@ export function CropImageField({
   )
 
   const [modalOpen, setModalOpen] = useState(false)
-  const [generating, setGenerating] = useState(false)
 
-  const handleSave = async (finalCrops: CropData) => {
+  const handleSave = (finalCrops: CropData) => {
     if (!media?.id) return
 
-    setCropData(finalCrops)
-    setModalOpen(false)
-    setGenerating(true)
+    // UX FIX: If the user changes an existing crop, we MUST delete the old URL
+    // from the form state so the UI falls back to the simulated CSS preview!
+    const newUrls = { ...(generatedUrls || {}) }
+    let urlsChanged = false
 
-    const results = await Promise.all(
-      cropDefinitions.flatMap((def) => {
-        const coords = finalCrops[def.name]
-        if (!coords) return []
-        return [
-          fetch(endpoint, {
-            body: JSON.stringify({
-              cropData: coords,
-              cropName: def.name,
-              format: def.format ?? 'webp',
-              mediaId: media.id,
-              outputHeight: def.height,
-              outputWidth: def.width,
-              quality: def.quality ?? 80,
-            }),
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            method: 'POST',
-          })
-            .then((res) => res.json())
-            .then((data: unknown) => {
-              if (isRecord(data) && typeof data.url === 'string') {
-                return { name: def.name, url: data.url }
-              }
-              return null
-            })
-            .catch((e: unknown) => {
-              console.error(`[CropImageField] Network error for crop "${def.name}":`, e)
-              return null
-            }),
-        ]
-      }),
-    )
-
-    const newUrls: GeneratedUrls = { ...(generatedUrls ?? {}) }
-    for (const result of results) {
-      if (result) newUrls[result.name] = result.url
+    for (const def of cropDefinitions) {
+      if (JSON.stringify(finalCrops[def.name]) !== JSON.stringify(cropData?.[def.name])) {
+        delete newUrls[def.name]
+        urlsChanged = true
+      }
     }
 
-    setGeneratedUrls(newUrls)
-    setGenerating(false)
+    setCropData(finalCrops)
+    if (urlsChanged) setGeneratedUrls(newUrls)
+
+    setModalOpen(false)
   }
 
   const remove = () => {
@@ -401,12 +376,12 @@ export function CropImageField({
     setCropData(null)
     setGeneratedUrls(null)
     setFetchedDoc(null)
+    setLoadedImages({}) // reset image states
   }
 
   const urls = generatedUrls ?? {}
   const crops = cropData ?? {}
   const anyCropSet = cropDefinitions.some((d) => crops[d.name])
-  const allCropsReady = cropDefinitions.every((d) => urls[d.name])
 
   const fileMeta = media
     ? [
@@ -418,13 +393,16 @@ export function CropImageField({
         .join(' — ')
     : null
 
+  // EARLY DETECTION: If we have an ID, we know a file is selected, even if we are fetching it.
+  const showDropzone = !imageId
+
   return (
     <div className={styles.wrap}>
       <div className={styles.labelWrap}>
         <label className={styles.label}>{fieldLabel}</label>
       </div>
 
-      {!media ? (
+      {showDropzone ? (
         <div className="dropzone">
           <div className="upload__dropzoneContent">
             <div className="upload__dropzoneContent__buttons">
@@ -454,20 +432,47 @@ export function CropImageField({
       ) : (
         <div className={`file-details ${styles.selectedWrap}`}>
           <header className={styles.selectedHeader}>
-            <img alt={media.alt ?? ''} className={styles.thumb} src={media.url ?? ''} />
+            {/* THUMBNAIL SKELETON */}
+            <div className={`${styles.thumb} ${!loadedImages['main'] ? styles.skeleton : ''}`}>
+              {media?.url && (
+                <img
+                  ref={(node) => checkCache(node, 'main')}
+                  alt={media.alt ?? ''}
+                  src={media.url}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    transition: 'opacity 0.2s',
+                    opacity: loadedImages['main'] ? 1 : 0,
+                  }}
+                  onLoad={() => handleImageLoad('main')}
+                  onError={() => handleImageLoad('main')}
+                />
+              )}
+            </div>
 
             <div className={styles.mainDetail}>
-              <span className={styles.filename}>{media.filename}</span>
-              {fileMeta && <span className={styles.fileMeta}>{fileMeta}</span>}
-              {generating && <span className={styles.generating}>Generating crops…</span>}
+              {/* DOCUMENT FETCHING SKELETON */}
+              {media?.filename ? (
+                <>
+                  <span className={styles.filename}>{media.filename}</span>
+                  {fileMeta && <span className={styles.fileMeta}>{fileMeta}</span>}
+                </>
+              ) : (
+                <>
+                  <div className={styles.skeletonText} />
+                  <div className={styles.skeletonTextSm} />
+                </>
+              )}
             </div>
 
             <div className={styles.iconActions}>
               <button
                 className={styles.iconBtn}
-                disabled={readOnly || generating}
+                disabled={readOnly || !media?.url} // Prevent cropping until fully loaded
                 onClick={() => setModalOpen(true)}
-                title={allCropsReady || anyCropSet ? 'Edit Crops' : 'Crop Image'}
+                title={anyCropSet ? 'Edit Crops' : 'Crop Image'}
                 type="button"
               >
                 <CropIcon />
@@ -497,12 +502,55 @@ export function CropImageField({
             <div className={styles.cropCards}>
               {cropDefinitions.map((def) => {
                 const url = urls[def.name]
+                const crop = crops[def.name]
+                const dynamicAspectRatio = `${def.width} / ${def.height}`
+
+                const isMainLoaded = loadedImages['main']
+                const isCropLoaded = loadedImages[def.name]
+
                 return (
                   <div className={styles.cropCard} key={def.name}>
                     {url ? (
-                      <img alt={def.label} className={styles.cropCardImg} src={url} />
+                      // 1. Server Generated Image (With Skeleton Wrapper)
+                      <div
+                        className={`${styles.cropCardImg} ${!isCropLoaded ? styles.skeleton : ''}`}
+                        style={{ aspectRatio: dynamicAspectRatio }}
+                      >
+                        <img
+                          ref={(node) => checkCache(node, def.name)}
+                          alt={def.label}
+                          src={url}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            transition: 'opacity 0.2s',
+                            opacity: isCropLoaded ? 1 : 0,
+                          }}
+                          onLoad={() => handleImageLoad(def.name)}
+                          onError={() => handleImageLoad(def.name)}
+                        />
+                      </div>
+                    ) : crop && media?.url ? (
+                      // 2. Client-side Simulated Preview
+                      <div
+                        className={`${styles.cropCardImg} ${!isMainLoaded ? styles.skeleton : ''}`}
+                        style={{
+                          backgroundImage: isMainLoaded ? `url(${media.url})` : 'none',
+                          backgroundSize: `${100 / (crop.width / 100)}% ${100 / (crop.height / 100)}%`,
+                          backgroundPosition: `${crop.x}% ${crop.y}%`,
+                          backgroundRepeat: 'no-repeat',
+                          height: '56px',
+                          width: 'auto',
+                          aspectRatio: dynamicAspectRatio,
+                        }}
+                      />
                     ) : (
-                      <div className={styles.cropCardEmpty}>
+                      // 3. Empty Placeholder Card (Retains aspect ratio)
+                      <div
+                        className={styles.cropCardEmpty}
+                        style={{ height: '56px', width: 'auto', aspectRatio: dynamicAspectRatio }}
+                      >
                         <span
                           className={`${styles.dot}${crops[def.name] ? ` ${styles.dotSet}` : ''}`}
                         />

@@ -36,9 +36,10 @@
   width: 48px;
   height: 48px;
   border-radius: var(--style-radius-s, 3px);
-  object-fit: cover;
   display: block;
   background: var(--theme-elevation-100, rgba(255, 255, 255, 0.06));
+  overflow: hidden;
+  position: relative;
 }
 
 .mainDetail {
@@ -125,11 +126,11 @@
 .cropCardImg {
   height: 56px;
   width: auto;
-  min-width: 40px;
-  max-width: 120px;
   border-radius: 3px;
   display: block;
-  object-fit: cover;
+  background: var(--theme-elevation-100, rgba(255, 255, 255, 0.06));
+  overflow: hidden;
+  position: relative;
 }
 
 .cropCardEmpty {
@@ -367,4 +368,38 @@
   border: 1px solid rgba(0, 0, 0, 0.45);
   width: 10px;
   height: 10px;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.skeleton {
+  animation: pulse 1.5s ease-in-out infinite;
+  background: var(--theme-elevation-100, rgba(255, 255, 255, 0.06)) !important;
+}
+
+.skeletonText {
+  height: 14px;
+  border-radius: 2px;
+  background: var(--theme-elevation-100, rgba(255, 255, 255, 0.06));
+  animation: pulse 1.5s ease-in-out infinite;
+  width: 60%;
+  margin-bottom: 6px;
+}
+
+.skeletonTextSm {
+  height: 10px;
+  width: 40%;
+  border-radius: 2px;
+  background: var(--theme-elevation-100, rgba(255, 255, 255, 0.06));
+  animation: pulse 1.5s ease-in-out infinite;
 }
