@@ -92,10 +92,6 @@ function XSvg() {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Crop modal
-// ---------------------------------------------------------------------------
-
 function initCrop(
   mediaWidth: number,
   mediaHeight: number,
@@ -238,10 +234,6 @@ function CropModal({
   )
 }
 
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
-
 export function CropImageField({
   path,
   cropDefinitions = [],
@@ -252,7 +244,7 @@ export function CropImageField({
 }: Props) {
   const { config } = useConfig()
   const apiRoute = config.routes.api || '/api'
-  const endpoint = generateCropEndpoint ?? `/${apiRoute}/${mediaCollectionSlug}/generate-crop`
+  const endpoint = generateCropEndpoint ?? `${apiRoute}/${mediaCollectionSlug}/generate-crop`
 
   const { value: imageRaw, setValue: setImageValue } = useField<MediaDoc | number | null>({
     path: `${path}.image`,
@@ -281,7 +273,7 @@ export function CropImageField({
       return
     }
     const controller = new AbortController()
-    fetch(`/${apiRoute}/${mediaCollectionSlug}/${imageId}?depth=0`, { signal: controller.signal })
+    fetch(`${apiRoute}/${mediaCollectionSlug}/${imageId}?depth=0`, { signal: controller.signal })
       .then((r) => r.json())
       .then((data: unknown) => {
         if (isMediaDoc(data)) setFetchedDoc(data)
