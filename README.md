@@ -35,35 +35,81 @@ npm install sharp
 
 ### 1. Add the plugin to your Payload config
 
+#### Local filesystem storage
+
 ```ts
 // payload.config.ts
 import path from 'path'
-import { fileURLToPath } from 'url'
 import { buildConfig } from 'payload'
-import { cropImagePlugin } from 'payload-image-cropper'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+import { cropImagePlugin } from 'payload-plugin-image-cropper'
 
 export default buildConfig({
   collections: [
     {
       slug: 'media',
       upload: {
-        staticDir: path.resolve(__dirname, 'public/media'),
+        staticDir: 'public/media', // relative to process.cwd()
       },
       fields: [],
     },
   ],
   plugins: [
     cropImagePlugin({
-      mediaCollectionSlug: 'media',            // default: 'media'
-      mediaDir: path.resolve(__dirname, 'public/media'), // must match staticDir
+      mediaCollectionSlug: 'media',                        // default: 'media'
+      mediaDir: path.join(process.cwd(), 'public/media'),  // must match staticDir
     }),
   ],
 })
 ```
 
-> **Important:** `mediaDir` must point to the same directory as the media collection's `staticDir`.
+> **Important:** `mediaDir` must be an **absolute path** pointing to the same directory as the media collection's `staticDir`. Always use `process.cwd()` rather than `__dirname` / `import.meta.url` — Payload resolves `staticDir` relative to the working directory, not the config file location.
+
+#### S3 (and other cloud storage)
+
+The plugin generates crop files using Sharp, which reads and writes to the **local filesystem**. When using cloud storage (S3, GCS, Azure Blob, etc.) with `disableLocalStorage: true`, the source files are not present on disk, so the plugin cannot process them.
+
+**To use this plugin with S3:**
+
+1. Keep local storage enabled alongside S3 so files remain on disk for Sharp to read:
+
+```ts
+import { s3Storage } from '@payloadcms/storage-s3'
+
+export default buildConfig({
+  collections: [
+    {
+      slug: 'media',
+      upload: {
+        staticDir: 'public/media',          // files stay on disk
+        staticURL: '/media',
+      },
+      fields: [],
+    },
+  ],
+  plugins: [
+    s3Storage({
+      collections: { media: true },
+      bucket: process.env.S3_BUCKET,
+      config: {
+        region: process.env.S3_REGION,
+        credentials: {
+          accessKeyId: process.env.S3_ACCESS_KEY_ID,
+          secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+        },
+      },
+      disableLocalStorage: false,           // keep files on disk
+    }),
+    cropImagePlugin({
+      mediaCollectionSlug: 'media',
+      mediaDir: path.join(process.cwd(), 'public/media'),
+    }),
+  ],
+})
+```
+
+2. The generated crop files will be written to `mediaDir` on disk. They will **not** be automatically uploaded to S3 — they are served from local disk via `staticURL`.
+
+> **Note:** If you require crop files to also live in S3, you would need to upload them in a post-hook or via a custom handler. Full S3-native support (download → process → upload) is not yet built into this plugin.
 
 ### 2. Add `cropImageField` to a collection
 
