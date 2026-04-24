@@ -16,6 +16,7 @@ export type {
   CropImageValue,
   GeneratedUrls,
   ImageFormat,
+  SizeDefinition,
 } from './types.js'
 
 export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugin {

@@ -1,6 +1,18 @@
 /** Output image format for Sharp processing */
 export type ImageFormat = 'jpeg' | 'png' | 'webp'
 
+/** A single output size within a multi-size crop definition */
+export type SizeDefinition = {
+  /** Output image height in pixels */
+  height: number
+  /** Human-readable label shown in preview cards. Defaults to `name`. */
+  label?: string
+  /** Machine-readable size name. Stored as `cropName.sizeName` in generatedUrls. */
+  name: string
+  /** Output image width in pixels */
+  width: number
+}
+
 export type CropDefinition = {
   /**
    * Desired output aspect ratio as width/height (e.g. 16/9).
@@ -9,17 +21,31 @@ export type CropDefinition = {
   aspectRatio?: number
   /** Output format. Defaults to 'webp'. */
   format?: ImageFormat
-  /** Output image height in pixels */
-  height: number
   /** Human-readable label shown in the crop modal tabs */
   label: string
   /** Machine-readable slot name, used as the key in cropData and generatedUrls */
   name: string
   /** Sharp quality, 1–100. Defaults to 80. Ignored for PNG. */
   quality?: number
-  /** Output image width in pixels */
-  width: number
-}
+} & (
+  | {
+      /** Output image height in pixels */
+      height: number
+      sizes?: never
+      /** Output image width in pixels */
+      width: number
+    }
+  | {
+      height?: never
+      /**
+       * Multiple output sizes generated from one crop region.
+       * Stored as compound keys (`cropName.sizeName`) in generatedUrls.
+       * When set, top-level `width` and `height` are not used.
+       */
+      sizes: SizeDefinition[]
+      width?: never
+    }
+)
 
 /** Percent-based crop rectangle as produced by react-image-crop */
 export type CropCoords = {

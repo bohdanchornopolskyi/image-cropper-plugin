@@ -39,7 +39,7 @@ function isGenerateCropBody(v: unknown): v is GenerateCropBody {
   if (typeof v.format !== 'undefined' && !VALID_FORMATS.includes(v.format as ImageFormat)) {
     return false
   }
-  if (typeof v.cropName !== 'string' || !/^[\w-]+$/.test(v.cropName)) {
+  if (typeof v.cropName !== 'string' || !/^[\w][\w.-]*$/.test(v.cropName)) {
     return false
   }
   return (
