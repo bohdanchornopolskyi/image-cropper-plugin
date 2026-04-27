@@ -6,7 +6,7 @@ import os from 'os'
 import path from 'path'
 import { getPayload } from 'payload'
 import sharp from 'sharp'
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import type { CropImageValue } from '../src/types.js'
 
@@ -730,5 +730,312 @@ describe('Payload integration', () => {
     const hooks = mediaCollection.config.hooks?.afterDelete
     expect(Array.isArray(hooks)).toBe(true)
     expect(hooks.length).toBeGreaterThanOrEqual(1)
+  })
+
+  test('posts collection has the cardImage multi-size group field', () => {
+    expect(payload.collections['posts']).toBeDefined()
+  })
+
+  test('can create a post and cardImage group field is present', async () => {
+    const post = await payload.create({ collection: 'posts', data: {} })
+    expect(post).toHaveProperty('cardImage')
+    expect(typeof post.cardImage).toBe('object')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Unit tests – getCropUrl (multi-size / sizeName)
+// ---------------------------------------------------------------------------
+
+describe('getCropUrl – multi-size compound keys', () => {
+  test('resolves compound key via sizeName param', () => {
+    const value: CropImageValue = {
+      generatedUrls: { 'card.lg': '/media/photo-crop-card.lg.webp' },
+    }
+    expect(getCropUrl(value, 'card', 'lg')).toBe('/media/photo-crop-card.lg.webp')
+  })
+
+  test('getCropUrl(value, "a.b") is equivalent to getCropUrl(value, "a", "b")', () => {
+    const value: CropImageValue = {
+      generatedUrls: { 'card.lg': '/media/photo-crop-card.lg.webp' },
+    }
+    expect(getCropUrl(value, 'card.lg')).toBe(getCropUrl(value, 'card', 'lg'))
+  })
+
+  test('falls back to image URL when compound key is missing', () => {
+    const value: CropImageValue = {
+      generatedUrls: {},
+      image: { url: '/media/photo.webp' },
+    }
+    expect(getCropUrl(value, 'card', 'lg')).toBe('/media/photo.webp')
+  })
+
+  test('returns empty string when both compound key and image are absent', () => {
+    expect(getCropUrl({}, 'card', 'lg')).toBe('')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Unit tests – resolveMediaCrop (multi-size / sizeName)
+// ---------------------------------------------------------------------------
+
+describe('resolveMediaCrop – multi-size compound keys', () => {
+  const mediaDoc = { height: 1080, url: '/media/photo.webp', width: 1920 }
+
+  test('injects compound crop URL via sizeName param', () => {
+    const value = {
+      generatedUrls: { 'card.lg': '/media/photo-crop-card.lg.webp' },
+      image: mediaDoc,
+    }
+    const result = resolveMediaCrop(value, 'card', undefined, 'lg')
+    expect(result?.url).toBe('/media/photo-crop-card.lg.webp')
+  })
+
+  test('overrides dimensions when outputSize and sizeName are both provided', () => {
+    const value = {
+      generatedUrls: { 'card.sm': '/media/photo-crop-card.sm.webp' },
+      image: mediaDoc,
+    }
+    const result = resolveMediaCrop(value, 'card', { height: 219, width: 390 }, 'sm')
+    expect(result?.url).toBe('/media/photo-crop-card.sm.webp')
+    expect(result?.width).toBe(390)
+    expect(result?.height).toBe(219)
+  })
+
+  test('falls back to original image when compound key not found', () => {
+    const value = { generatedUrls: {}, image: mediaDoc }
+    const result = resolveMediaCrop(value, 'card', undefined, 'md')
+    expect(result?.url).toBe('/media/photo.webp')
+  })
+
+  test('does not mutate the original media doc', () => {
+    const doc = { ...mediaDoc }
+    resolveMediaCrop({ generatedUrls: { 'card.lg': '/x.webp' }, image: doc }, 'card', undefined, 'lg')
+    expect(doc.url).toBe('/media/photo.webp')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Unit tests – makeGenerateCropHandler (multi-size compound keys)
+// ---------------------------------------------------------------------------
+
+describe('makeGenerateCropHandler – compound keys and onCropGenerated', () => {
+  let mediaDir: string
+  let testImageFile: string
+
+  beforeAll(async () => {
+    mediaDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'handler-multi-test-'))
+    testImageFile = path.join(mediaDir, 'source.jpg')
+    await sharp({
+      create: { background: { b: 200, g: 150, r: 100 }, channels: 3, height: 300, width: 400 },
+    })
+      .jpeg()
+      .toFile(testImageFile)
+  })
+
+  afterAll(async () => {
+    await fs.promises.rm(mediaDir, { force: true, recursive: true })
+  })
+
+  type MockRequest = {
+    json: () => Promise<unknown>
+    payload: { findByID: () => Promise<Record<string, unknown>> }
+    user: unknown
+  }
+
+  function makeRequest(body: unknown, user: unknown = { id: '1' }): MockRequest {
+    return {
+      json: async () => body,
+      payload: {
+        findByID: async () => ({ filename: 'source.jpg', height: 300, width: 400 }),
+      },
+      user,
+    }
+  }
+
+  async function callHandler(
+    handler: ReturnType<typeof makeGenerateCropHandler>,
+    req: MockRequest,
+  ): Promise<Response> {
+    return handler(req as unknown as Parameters<typeof handler>[0])
+  }
+
+  test('accepts a compound cropName (card.desktop)', async () => {
+    const handler = makeGenerateCropHandler(mediaDir, 'media')
+    const res = await callHandler(
+      handler,
+      makeRequest({
+        cropData: { height: 100, width: 100, x: 0, y: 0 },
+        cropName: 'card.desktop',
+        format: 'webp',
+        mediaId: '1',
+        outputHeight: 675,
+        outputWidth: 1200,
+      }),
+    )
+    expect([undefined, 200]).toContain(res.status)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(typeof body['url']).toBe('string')
+    expect((body['url'] as string)).toMatch(/card\.desktop/)
+  })
+
+  test('cleanup is isolated per compound slot (card.lg vs card.md)', async () => {
+    const handler = makeGenerateCropHandler(mediaDir, 'media')
+
+    const lgRes = await callHandler(
+      handler,
+      makeRequest({
+        cropData: { height: 100, width: 100, x: 0, y: 0 },
+        cropName: 'card.lg',
+        format: 'webp',
+        mediaId: '1',
+        outputHeight: 675,
+        outputWidth: 1200,
+      }),
+    )
+    const lgUrl = ((await lgRes.json()) as Record<string, unknown>)['url'] as string
+    const lgFile = path.join(mediaDir, path.basename(lgUrl))
+
+    const mdRes = await callHandler(
+      handler,
+      makeRequest({
+        cropData: { height: 100, width: 100, x: 0, y: 0 },
+        cropName: 'card.md',
+        format: 'webp',
+        mediaId: '1',
+        outputHeight: 432,
+        outputWidth: 768,
+      }),
+    )
+    const mdUrl = ((await mdRes.json()) as Record<string, unknown>)['url'] as string
+    const mdFile = path.join(mediaDir, path.basename(mdUrl))
+
+    // Re-crop card.lg with different coords — should delete old lg file
+    await callHandler(
+      handler,
+      makeRequest({
+        cropData: { height: 80, width: 80, x: 10, y: 10 },
+        cropName: 'card.lg',
+        format: 'webp',
+        mediaId: '1',
+        outputHeight: 675,
+        outputWidth: 1200,
+      }),
+    )
+
+    expect(fs.existsSync(lgFile)).toBe(false) // old lg deleted
+    expect(fs.existsSync(mdFile)).toBe(true) // md untouched
+  })
+
+  test('onCropGenerated is called with correct context and its URL is returned', async () => {
+    const onCropGenerated = vi.fn().mockResolvedValueOnce({ url: 'https://cdn.example.com/crop.webp' })
+    const handler = makeGenerateCropHandler(mediaDir, 'media', onCropGenerated)
+
+    const res = await callHandler(
+      handler,
+      makeRequest({
+        cropData: { height: 100, width: 100, x: 0, y: 0 },
+        cropName: 'card.lg',
+        format: 'webp',
+        mediaId: '1',
+        outputHeight: 675,
+        outputWidth: 1200,
+      }),
+    )
+
+    expect(onCropGenerated).toHaveBeenCalledOnce()
+    const ctx = onCropGenerated.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(ctx['cropName']).toBe('card.lg')
+    expect(ctx['format']).toBe('webp')
+    expect(ctx['mediaId']).toBe('1')
+    expect(Buffer.isBuffer(ctx['buffer'])).toBe(true)
+
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body['url']).toBe('https://cdn.example.com/crop.webp')
+  })
+
+  test('onCropGenerated returning void falls back to local disk write', async () => {
+    const onCropGenerated = vi.fn().mockResolvedValueOnce(undefined)
+    const handler = makeGenerateCropHandler(mediaDir, 'media', onCropGenerated)
+
+    const res = await callHandler(
+      handler,
+      makeRequest({
+        cropData: { height: 100, width: 100, x: 0, y: 0 },
+        cropName: 'callback-void-test',
+        format: 'webp',
+        mediaId: '1',
+        outputHeight: 100,
+        outputWidth: 100,
+      }),
+    )
+
+    const body = (await res.json()) as Record<string, unknown>
+    expect(typeof body['url']).toBe('string')
+    const filePath = path.join(mediaDir, path.basename(body['url'] as string))
+    expect(fs.existsSync(filePath)).toBe(true)
+  })
+
+  test('fetches source from media URL when local file is missing (S3 scenario)', async () => {
+    const mockImageBuffer = await sharp({
+      create: { background: { b: 100, g: 100, r: 100 }, channels: 3, height: 100, width: 100 },
+    })
+      .jpeg()
+      .toBuffer()
+
+    const mockFetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      arrayBuffer: async () =>
+        mockImageBuffer.buffer.slice(
+          mockImageBuffer.byteOffset,
+          mockImageBuffer.byteOffset + mockImageBuffer.byteLength,
+        ),
+    })
+    vi.stubGlobal('fetch', mockFetch)
+
+    const req: MockRequest = {
+      ...makeRequest({
+        cropData: { height: 100, width: 100, x: 0, y: 0 },
+        cropName: 'remote-source',
+        format: 'webp',
+        mediaId: '1',
+        outputHeight: 50,
+        outputWidth: 50,
+      }),
+      payload: {
+        findByID: async () => ({
+          filename: 'nonexistent-remote.jpg',
+          height: 100,
+          url: 'https://s3.example.com/nonexistent-remote.jpg',
+          width: 100,
+        }),
+      },
+    }
+
+    const handler = makeGenerateCropHandler(mediaDir, 'media')
+    const res = await callHandler(handler, req)
+    expect([undefined, 200]).toContain(res.status)
+
+    vi.unstubAllGlobals()
+  })
+
+  test('returns 404 when file is not local and has no HTTP URL', async () => {
+    const req: MockRequest = {
+      ...makeRequest({
+        cropData: { height: 100, width: 100, x: 0, y: 0 },
+        cropName: 'no-source',
+        format: 'webp',
+        mediaId: '1',
+        outputHeight: 50,
+        outputWidth: 50,
+      }),
+      payload: {
+        findByID: async () => ({ filename: 'nonexistent.jpg', height: 100, width: 100 }),
+      },
+    }
+
+    const handler = makeGenerateCropHandler(mediaDir, 'media')
+    const res = await callHandler(handler, req)
+    expect(res.status).toBe(404)
   })
 })

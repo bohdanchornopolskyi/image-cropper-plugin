@@ -4,7 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
 
-import type { CropCoords, ImageFormat } from './types.js'
+import type { CropCoords, ImageFormat, OnCropGeneratedContext } from './types.js'
 
 import { isRecord } from './isRecord.js'
 
@@ -39,7 +39,7 @@ function isGenerateCropBody(v: unknown): v is GenerateCropBody {
   if (typeof v.format !== 'undefined' && !VALID_FORMATS.includes(v.format as ImageFormat)) {
     return false
   }
-  if (typeof v.cropName !== 'string' || !/^[\w-]+$/.test(v.cropName)) {
+  if (typeof v.cropName !== 'string' || !/^[\w][\w.-]*$/.test(v.cropName)) {
     return false
   }
   return (
@@ -61,9 +61,32 @@ function applyFormat(pipeline: sharp.Sharp, format: ImageFormat, quality: number
   return pipeline.webp({ quality })
 }
 
+/**
+ * Resolves the source image as a Sharp-compatible input.
+ * Tries the local filesystem first; falls back to fetching from the media URL
+ * when the file is not present on disk (e.g. cloud storage with disableLocalStorage: true).
+ */
+async function resolveSourceInput(
+  localPath: string,
+  mediaUrl: string | undefined,
+): Promise<Buffer | string | null> {
+  if (fs.existsSync(localPath)) {
+    return localPath
+  }
+  if (typeof mediaUrl === 'string' && /^https?:\/\//.test(mediaUrl)) {
+    const res = await fetch(mediaUrl)
+    if (!res.ok) return null
+    return Buffer.from(await res.arrayBuffer())
+  }
+  return null
+}
+
 export function makeGenerateCropHandler(
   mediaDir: string,
   mediaCollectionSlug: string,
+  onCropGenerated?: (
+    ctx: OnCropGeneratedContext,
+  ) => Promise<{ url: string } | void> | { url: string } | void,
 ): PayloadHandler {
   const mediaDirBase = path.basename(mediaDir)
 
@@ -95,7 +118,17 @@ export function makeGenerateCropHandler(
       req,
     })
 
-    const { filename, height: originalHeight, width: originalWidth } = mediaDoc ?? {}
+    const {
+      filename,
+      height: originalHeight,
+      url: mediaUrl,
+      width: originalWidth,
+    } = (mediaDoc ?? {}) as {
+      filename?: string
+      height?: number
+      url?: string
+      width?: number
+    }
 
     if (!filename) {
       return Response.json({ error: 'Media not found' }, { status: 404 })
@@ -108,7 +141,8 @@ export function makeGenerateCropHandler(
     const safeFilename = path.basename(filename)
     const sourceFilePath = path.join(mediaDir, safeFilename)
 
-    if (!fs.existsSync(sourceFilePath)) {
+    const sourceInput = await resolveSourceInput(sourceFilePath, mediaUrl)
+    if (!sourceInput) {
       return Response.json({ error: `Source file not found: ${safeFilename}` }, { status: 404 })
     }
 
@@ -130,32 +164,46 @@ export function makeGenerateCropHandler(
     const outputFilePath = path.join(mediaDir, outputFilename)
     const slotPrefix = `${base}-crop-${cropName}-`
 
-    let alreadyExists = false
-    try {
-      const dir = await fs.promises.opendir(mediaDir)
-      for await (const dirent of dir) {
-        if (dirent.name === outputFilename) {
-          alreadyExists = true
-        } else if (dirent.name.startsWith(slotPrefix)) {
-          await fs.promises.unlink(path.join(mediaDir, dirent.name)).catch((e: unknown) => {
-            console.error(`[generateCrop] Failed to delete old crop file ${dirent.name}:`, e)
-          })
+    // Only scan local disk when not using a custom storage callback
+    if (!onCropGenerated) {
+      let alreadyExists = false
+      try {
+        const dir = await fs.promises.opendir(mediaDir)
+        for await (const dirent of dir) {
+          if (dirent.name === outputFilename) {
+            alreadyExists = true
+          } else if (dirent.name.startsWith(slotPrefix)) {
+            await fs.promises.unlink(path.join(mediaDir, dirent.name)).catch((e: unknown) => {
+              console.error(`[generateCrop] Failed to delete old crop file ${dirent.name}:`, e)
+            })
+          }
         }
+      } catch (e) {
+        console.error('[generateCrop] Failed to read media directory:', e)
       }
-    } catch (e) {
-      console.error('[generateCrop] Failed to read media directory:', e)
-    }
 
-    if (alreadyExists) {
-      return Response.json({ url: `/${mediaDirBase}/${outputFilename}` })
+      if (alreadyExists) {
+        return Response.json({ url: `/${mediaDirBase}/${outputFilename}` })
+      }
     }
 
     try {
-      const pipeline = sharp(sourceFilePath)
+      const pipeline = sharp(sourceInput)
         .extract({ height: cropH, left, top, width: cropW })
         .resize(outputWidth, outputHeight, { fit: 'fill' })
 
-      await applyFormat(pipeline, format, quality).toFile(outputFilePath)
+      if (onCropGenerated) {
+        const buffer = await applyFormat(pipeline, format, quality).toBuffer()
+        const ctx: OnCropGeneratedContext = { buffer, cropName, filename: outputFilename, format, mediaId }
+        const result = await onCropGenerated(ctx)
+        if (result?.url) {
+          return Response.json({ url: result.url })
+        }
+        // Callback returned void — fall through to local disk write
+        await fs.promises.writeFile(outputFilePath, buffer)
+      } else {
+        await applyFormat(pipeline, format, quality).toFile(outputFilePath)
+      }
 
       return Response.json({ url: `/${mediaDirBase}/${outputFilename}` })
     } catch (e) {

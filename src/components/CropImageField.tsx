@@ -217,7 +217,10 @@ function CropModal({
 
         <div className={styles.modalFooter}>
           <span className={styles.cropHint}>
-            {activeDef && `${activeDef.label} — ${activeDef.width} × ${activeDef.height} px`}
+            {activeDef &&
+              (activeDef.sizes
+                ? `${activeDef.label} — ${activeDef.sizes.length} size${activeDef.sizes.length === 1 ? '' : 's'}`
+                : `${activeDef.label} — ${activeDef.width} × ${activeDef.height} px`)}
           </span>
           <div className={styles.footerActions}>
             <button className={styles.btnGhost} onClick={onClose} type="button">
@@ -349,15 +352,20 @@ export function CropImageField({
       cropDefinitions.flatMap((def) => {
         const coords = finalCrops[def.name]
         if (!coords) return []
-        return [
+
+        const targets = def.sizes
+          ? def.sizes.map((s) => ({ key: `${def.name}.${s.name}`, width: s.width, height: s.height }))
+          : [{ key: def.name, width: def.width, height: def.height }]
+
+        return targets.map(({ key, width, height }) =>
           fetch(endpoint, {
             body: JSON.stringify({
               cropData: coords,
-              cropName: def.name,
+              cropName: key,
               format: def.format ?? 'webp',
               mediaId: media.id,
-              outputHeight: def.height,
-              outputWidth: def.width,
+              outputHeight: height,
+              outputWidth: width,
               quality: def.quality ?? 80,
             }),
             credentials: 'include',
@@ -367,15 +375,15 @@ export function CropImageField({
             .then((res) => res.json())
             .then((data: unknown) => {
               if (isRecord(data) && typeof data.url === 'string') {
-                return { name: def.name, url: data.url }
+                return { name: key, url: data.url }
               }
               return null
             })
             .catch((e: unknown) => {
-              console.error(`[CropImageField] Network error for crop "${def.name}":`, e)
+              console.error(`[CropImageField] Network error for crop "${key}":`, e)
               return null
             }),
-        ]
+        )
       }),
     )
 
@@ -398,7 +406,9 @@ export function CropImageField({
   const urls = generatedUrls ?? {}
   const crops = cropData ?? {}
   const anyCropSet = cropDefinitions.some((d) => crops[d.name])
-  const allCropsReady = cropDefinitions.every((d) => urls[d.name])
+  const allCropsReady = cropDefinitions.every((d) =>
+    d.sizes ? d.sizes.every((s) => urls[`${d.name}.${s.name}`]) : Boolean(urls[d.name]),
+  )
 
   const fileMeta = media
     ? [
@@ -487,9 +497,36 @@ export function CropImageField({
 
           {cropDefinitions.length > 0 && (
             <div className={styles.cropCards}>
-              {cropDefinitions.map((def) => {
+              {cropDefinitions.flatMap((def) => {
+                if (def.sizes) {
+                  return def.sizes.map((size) => {
+                    const key = `${def.name}.${size.name}`
+                    const url = urls[key]
+                    return (
+                      <div className={styles.cropCard} key={key}>
+                        {url ? (
+                          <img
+                            alt={`${def.label} — ${size.label ?? size.name}`}
+                            className={styles.cropCardImg}
+                            src={url}
+                          />
+                        ) : (
+                          <div className={styles.cropCardEmpty}>
+                            <span
+                              className={`${styles.dot}${crops[def.name] ? ` ${styles.dotSet}` : ''}`}
+                            />
+                          </div>
+                        )}
+                        <span className={styles.cropCardLabel}>{def.label}</span>
+                        <span className={styles.cropCardSize}>
+                          {size.label ?? size.name} — {size.width}×{size.height}
+                        </span>
+                      </div>
+                    )
+                  })
+                }
                 const url = urls[def.name]
-                return (
+                return [
                   <div className={styles.cropCard} key={def.name}>
                     {url ? (
                       <img alt={def.label} className={styles.cropCardImg} src={url} />
@@ -504,8 +541,8 @@ export function CropImageField({
                     <span className={styles.cropCardSize}>
                       {def.width}×{def.height}
                     </span>
-                  </div>
-                )
+                  </div>,
+                ]
               })}
             </div>
           )}

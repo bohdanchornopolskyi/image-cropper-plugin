@@ -59,6 +59,22 @@ const buildConfigWithMemoryDB = async () => {
             ],
             label: 'Hero Image',
           }),
+          cropImageField({
+            name: 'cardImage',
+            crops: [
+              {
+                name: 'card',
+                label: 'Card (16:9)',
+                aspectRatio: 16 / 9,
+                sizes: [
+                  { name: 'lg', label: 'Large (desktop)',  width: 1200, height: 675 },
+                  { name: 'md', label: 'Medium (tablet)',  width: 768,  height: 432 },
+                  { name: 'sm', label: 'Small (mobile)',   width: 390,  height: 219 },
+                ],
+              },
+            ],
+            label: 'Card Image',
+          }),
         ],
       },
       {

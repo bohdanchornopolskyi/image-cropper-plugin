@@ -16,6 +16,8 @@ export type {
   CropImageValue,
   GeneratedUrls,
   ImageFormat,
+  OnCropGeneratedContext,
+  SizeDefinition,
 } from './types.js'
 
 export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugin {
@@ -33,7 +35,7 @@ export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugi
         endpoints: [
           ...(Array.isArray(collection.endpoints) ? collection.endpoints : []),
           {
-            handler: makeGenerateCropHandler(mediaDir, mediaSlug),
+            handler: makeGenerateCropHandler(mediaDir, mediaSlug, pluginConfig.onCropGenerated),
             method: 'post' as const,
             path: '/generate-crop',
           },
