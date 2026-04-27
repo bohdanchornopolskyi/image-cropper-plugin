@@ -105,12 +105,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/payload-plugin-image-cropper.git"
+    "url": "https://github.com/bohdanchornopolskyi/image-cropper-plugin.git"
   },
   "bugs": {
-    "url": "https://github.com/your-username/payload-plugin-image-cropper/issues"
+    "url": "https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues"
   },
-  "homepage": "https://github.com/your-username/payload-plugin-image-cropper#readme",
+  "homepage": "https://github.com/bohdanchornopolskyi/image-cropper-plugin#readme",
   "keywords": [
     "payload",
     "payloadcms",
