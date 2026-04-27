@@ -253,14 +253,28 @@ const media = resolveMediaCrop(post.heroImage, 'mobile')
 // → { id: '...', filename: '...', url: '/media/...mobile....webp', ... }
 ```
 
+Both helpers are safe to call with `null` or `undefined` — they return `''` / `null` respectively. When no generated crop exists yet, `getCropUrl` falls back to the original `image.url` so the field degrades gracefully before an editor has cropped the image.
+
 ### Multi-size crops
 
-Pass the size name as the third argument:
+Pass the size name as the third argument to `getCropUrl`:
 
 ```ts
 const lgUrl = getCropUrl(post.cardImage, 'card', 'lg')
 const mdUrl = getCropUrl(post.cardImage, 'card', 'md')
 const smUrl = getCropUrl(post.cardImage, 'card', 'sm')
+
+// Compound-key shorthand — equivalent to the above
+const lgUrl = getCropUrl(post.cardImage, 'card.lg')
+```
+
+Use `resolveMediaCrop` when you need the full media object. Pass the `outputSize` object as the third argument so the returned object reflects the actual pixel dimensions of that size:
+
+```ts
+const lgMedia = resolveMediaCrop(post.cardImage, 'card', { width: 1200, height: 675 }, 'lg')
+const mdMedia = resolveMediaCrop(post.cardImage, 'card', { width: 768,  height: 432 }, 'md')
+const smMedia = resolveMediaCrop(post.cardImage, 'card', { width: 390,  height: 219 }, 'sm')
+// → { id: '...', filename: '...', url: '/media/...card.lg....webp', width: 1200, height: 675, ... }
 ```
 
 #### Standard HTML — `<picture>` srcset
@@ -295,8 +309,6 @@ function cardImageLoader({ width }) {
   priority
 />
 ```
-
-Both helpers are safe to call with `null` or `undefined` — they return `null` / `''` in that case.
 
 ## Data shape
 
