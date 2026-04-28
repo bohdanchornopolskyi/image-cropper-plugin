@@ -4,7 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
 
-import type { CropCoords, ImageFormat, OnCropGeneratedContext } from './types.js'
+import type { CropCoords, CropStorage, ImageFormat, OnCropGeneratedContext } from './types.js'
 
 import { isRecord } from './isRecord.js'
 
@@ -87,6 +87,7 @@ export function makeGenerateCropHandler(
   onCropGenerated?: (
     ctx: OnCropGeneratedContext,
   ) => Promise<{ url: string } | void> | { url: string } | void,
+  storage?: CropStorage,
 ): PayloadHandler {
   const mediaDirBase = path.basename(mediaDir)
 
@@ -164,8 +165,12 @@ export function makeGenerateCropHandler(
     const outputFilePath = path.join(mediaDir, outputFilename)
     const slotPrefix = `${base}-crop-${cropName}-`
 
-    // Only scan local disk when not using a custom storage callback
-    if (!onCropGenerated) {
+    // storage adapter takes precedence over onCropGenerated
+    const useCloudStorage = storage ?? null
+    const useLegacyCallback = !useCloudStorage && onCropGenerated ? onCropGenerated : null
+
+    // Only scan local disk when writing to local filesystem
+    if (!useCloudStorage && !useLegacyCallback) {
       let alreadyExists = false
       try {
         const dir = await fs.promises.opendir(mediaDir)
@@ -192,19 +197,25 @@ export function makeGenerateCropHandler(
         .extract({ height: cropH, left, top, width: cropW })
         .resize(outputWidth, outputHeight, { fit: 'fill' })
 
-      if (onCropGenerated) {
-        const buffer = await applyFormat(pipeline, format, quality).toBuffer()
-        const ctx: OnCropGeneratedContext = { buffer, cropName, filename: outputFilename, format, mediaId }
-        const result = await onCropGenerated(ctx)
+      const buffer = await applyFormat(pipeline, format, quality).toBuffer()
+      const ctx: OnCropGeneratedContext = { buffer, cropName, filename: outputFilename, format, mediaId }
+
+      if (useCloudStorage) {
+        const result = await useCloudStorage.upload(ctx)
+        return Response.json({ url: result.url })
+      }
+
+      if (useLegacyCallback) {
+        const result = await useLegacyCallback(ctx)
         if (result?.url) {
           return Response.json({ url: result.url })
         }
         // Callback returned void — fall through to local disk write
         await fs.promises.writeFile(outputFilePath, buffer)
-      } else {
-        await applyFormat(pipeline, format, quality).toFile(outputFilePath)
+        return Response.json({ url: `/${mediaDirBase}/${outputFilename}` })
       }
 
+      await fs.promises.writeFile(outputFilePath, buffer)
       return Response.json({ url: `/${mediaDirBase}/${outputFilename}` })
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unknown error'

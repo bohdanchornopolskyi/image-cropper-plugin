@@ -14,6 +14,7 @@ export type {
   CropImageFieldConfig,
   CropImagePluginConfig,
   CropImageValue,
+  CropStorage,
   GeneratedUrls,
   ImageFormat,
   OnCropGeneratedContext,
@@ -35,7 +36,12 @@ export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugi
         endpoints: [
           ...(Array.isArray(collection.endpoints) ? collection.endpoints : []),
           {
-            handler: makeGenerateCropHandler(mediaDir, mediaSlug, pluginConfig.onCropGenerated),
+            handler: makeGenerateCropHandler(
+              mediaDir,
+              mediaSlug,
+              pluginConfig.onCropGenerated,
+              pluginConfig.storage,
+            ),
             method: 'post' as const,
             path: '/generate-crop',
           },
@@ -44,7 +50,7 @@ export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugi
           ...collection.hooks,
           afterDelete: [
             ...(collection.hooks?.afterDelete ?? []),
-            makeDeleteOrphanedCrops(mediaDir),
+            makeDeleteOrphanedCrops(mediaDir, pluginConfig.storage),
           ],
         },
       }

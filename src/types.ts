@@ -93,6 +93,27 @@ export type OnCropGeneratedContext = {
   mediaId: number | string
 }
 
+/**
+ * Cloud storage adapter for crop files.
+ * When provided, all local disk I/O is bypassed — the adapter owns storage
+ * entirely.
+ */
+export type CropStorage = {
+  /**
+   * Called when the source media document is deleted.
+   * Receives the filename base (e.g. `'my-photo'`) and should remove every
+   * associated crop object (e.g. all S3 keys whose name starts with
+   * `my-photo-crop-`). If omitted, orphaned crop files in cloud storage will
+   * not be cleaned up automatically.
+   */
+  deleteCropsByBase?: (filenameBase: string) => Promise<void>
+  /**
+   * Upload a generated crop buffer and return its public URL.
+   * The local disk write is skipped entirely when this is provided.
+   */
+  upload: (ctx: OnCropGeneratedContext) => Promise<{ url: string }>
+}
+
 export type CropImagePluginConfig = {
   /**
    * Slug of the collection that stores media documents and serves as the
@@ -112,12 +133,20 @@ export type CropImagePluginConfig = {
    * **and** skip the local disk write — your callback owns storage.
    * Return nothing (or `undefined`) to fall back to the default local-disk write.
    *
-   * This is the integration point for S3 / GCS / Azure Blob:
-   * upload `buffer` to your bucket, return the public CDN URL.
+   * @deprecated Prefer the `storage` option which also handles deletion.
    */
   onCropGenerated?: (
     ctx: OnCropGeneratedContext,
   ) => Promise<{ url: string } | void> | { url: string } | void
+  /**
+   * Cloud storage adapter. When set, all local disk I/O is skipped — crops are
+   * uploaded via `storage.upload` and (optionally) cleaned up via
+   * `storage.deleteCropsByBase`. Takes precedence over `onCropGenerated`.
+   *
+   * Use this when Payload is configured with S3 / GCS / Azure Blob / any cloud
+   * storage and you want crop files to live in the same bucket.
+   */
+  storage?: CropStorage
 }
 
 export type CropImageFieldConfig = {

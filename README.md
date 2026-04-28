@@ -68,12 +68,19 @@ export default buildConfig({
 
 #### S3 and other cloud storage
 
-The plugin has two complementary strategies for cloud storage:
-
-**Strategy 1 — keep local storage alongside S3** (simpler, crops served from disk)
+Use the `storage` option to route generated crop files to your bucket. Pass an object with an `upload` method (required) and optionally `deleteCropsByBase` for automatic cleanup when source media is deleted.
 
 ```ts
+import { S3Client, PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3'
 import { s3Storage } from '@payloadcms/storage-s3'
+
+const s3 = new S3Client({
+  region: process.env.S3_REGION,
+  credentials: {
+    accessKeyId: process.env.S3_ACCESS_KEY,
+    secretAccessKey: process.env.S3_SECRET_KEY,
+  },
+})
 
 export default buildConfig({
   plugins: [
@@ -81,42 +88,45 @@ export default buildConfig({
       collections: { media: true },
       bucket: process.env.S3_BUCKET,
       config: { region: process.env.S3_REGION, credentials: { ... } },
-      disableLocalStorage: false, // keep files on disk so Sharp can read them
     }),
     cropImagePlugin({
       mediaCollectionSlug: 'media',
-      mediaDir: path.join(process.cwd(), 'public/media'),
+      mediaDir: path.join(process.cwd(), 'public/media'), // still needed to read source files
+      storage: {
+        async upload({ buffer, filename, format }) {
+          const contentType =
+            format === 'jpeg' ? 'image/jpeg' : format === 'png' ? 'image/png' : 'image/webp'
+          await s3.send(new PutObjectCommand({
+            Bucket: process.env.S3_BUCKET,
+            Key: filename,
+            Body: buffer,
+            ContentType: contentType,
+            ACL: 'public-read',
+          }))
+          return { url: `https://${process.env.S3_CDN_DOMAIN}/${filename}` }
+        },
+        async deleteCropsByBase(filenameBase) {
+          const prefix = `${filenameBase}-crop-`
+          const list = await s3.send(
+            new ListObjectsV2Command({ Bucket: process.env.S3_BUCKET, Prefix: prefix }),
+          )
+          await Promise.all(
+            (list.Contents ?? []).map(({ Key }) =>
+              s3.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: Key! })),
+            ),
+          )
+        },
+      },
     }),
   ],
 })
 ```
 
-**Strategy 2 — `onCropGenerated` callback** (crops live in S3, served from CDN)
+`storage.upload` is called after Sharp processes the crop. Return `{ url }` — that URL is stored in `generatedUrls` and no local disk write occurs. `storage.deleteCropsByBase` is called when the source media document is deleted and receives the filename base (e.g. `'my-photo'`); delete every object whose key starts with `my-photo-crop-`.
 
-```ts
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+The plugin reads the source image either from local disk (`mediaDir`) or by fetching the media document's URL when the file is not on disk (i.e. when `disableLocalStorage: true`).
 
-const s3 = new S3Client({ region: process.env.S3_REGION })
-
-cropImagePlugin({
-  mediaDir: path.join(process.cwd(), 'public/media'),
-
-  async onCropGenerated({ buffer, filename, format }) {
-    await s3.send(new PutObjectCommand({
-      Bucket: process.env.S3_BUCKET,
-      Key: `crops/${filename}`,
-      Body: buffer,
-      ContentType: format === 'jpeg' ? 'image/jpeg' : format === 'png' ? 'image/png' : 'image/webp',
-    }))
-    // Returning a url skips the local disk write and stores the CDN url in generatedUrls
-    return { url: `https://${process.env.S3_BUCKET}.s3.amazonaws.com/crops/${filename}` }
-  },
-})
-```
-
-When `onCropGenerated` returns `{ url }`, that URL is stored in `generatedUrls` and the local disk write is skipped entirely. If it returns void, the file is written to disk as usual.
-
-The plugin also handles the case where source files are not on disk (`disableLocalStorage: true`) by fetching the original from the media document's URL before running Sharp.
+> **Note:** `mediaDir` is still required so the plugin knows where to look for source images when they are on disk. If you use `disableLocalStorage: true` on the S3 plugin, the source file will be fetched from its URL automatically and `mediaDir` is effectively unused.
 
 ### 2. Add `cropImageField` to a collection
 
@@ -187,7 +197,15 @@ Generated URLs are stored under compound keys: `card.lg`, `card.md`, `card.sm`.
 |---|---|---|---|
 | `mediaCollectionSlug` | `string` | `'media'` | Slug of the collection that stores media uploads |
 | `mediaDir` | `string` | `process.cwd() + '/public/media'` | Absolute path to the media storage directory |
-| `onCropGenerated` | `function` | — | Called after Sharp processes each crop. Receives `{ buffer, filename, format, cropName, mediaId }`. Return `{ url }` to store a custom URL and skip the local disk write, or return void to write to disk. |
+| `storage` | `CropStorage` | — | Cloud storage adapter. When set, all local disk I/O for crop files is bypassed. Takes precedence over `onCropGenerated`. |
+| `onCropGenerated` | `function` | — | _(Deprecated — use `storage` instead.)_ Called after Sharp processes each crop. Return `{ url }` to store a custom URL and skip the local disk write, or return void to write to disk. |
+
+### `CropStorage`
+
+| Option | Type | Description |
+|---|---|---|
+| `upload` | `(ctx: OnCropGeneratedContext) => Promise<{ url: string }>` | **Required.** Upload the crop buffer and return its public URL. |
+| `deleteCropsByBase` | `(filenameBase: string) => Promise<void>` | Called when source media is deleted. Receives the filename base (e.g. `'my-photo'`); delete all associated crop objects (keys starting with `my-photo-crop-`). If omitted, orphaned crops are not removed from cloud storage. |
 
 ### `cropImageField` options
 

@@ -3,7 +3,12 @@ import type { CollectionAfterDeleteHook } from 'payload'
 import fs from 'fs'
 import path from 'path'
 
-export function makeDeleteOrphanedCrops(mediaDir: string): CollectionAfterDeleteHook {
+import type { CropStorage } from './types.js'
+
+export function makeDeleteOrphanedCrops(
+  mediaDir: string,
+  storage?: CropStorage,
+): CollectionAfterDeleteHook {
   return async ({ doc }) => {
     const filename = doc.filename
     if (typeof filename !== 'string' || !filename) {
@@ -12,6 +17,15 @@ export function makeDeleteOrphanedCrops(mediaDir: string): CollectionAfterDelete
 
     const base = path.basename(filename, path.extname(filename))
     const cropPrefix = `${base}-crop-`
+
+    if (storage) {
+      if (storage.deleteCropsByBase) {
+        await storage.deleteCropsByBase(base).catch((e: unknown) => {
+          console.error(`[deleteOrphanedCrops] storage.deleteCropsByBase failed for "${base}":`, e)
+        })
+      }
+      return
+    }
 
     try {
       const dir = await fs.promises.opendir(mediaDir)
