@@ -1,5 +1,6 @@
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
+import { s3Storage } from '@payloadcms/storage-s3'
 import { MongoMemoryReplSet } from 'mongodb-memory-server'
 import path from 'path'
 import { buildConfig } from 'payload'
@@ -64,12 +65,12 @@ const buildConfigWithMemoryDB = async () => {
             crops: [
               {
                 name: 'card',
-                label: 'Card (16:9)',
                 aspectRatio: 16 / 9,
+                label: 'Card (16:9)',
                 sizes: [
-                  { name: 'lg', label: 'Large (desktop)',  width: 1200, height: 675 },
-                  { name: 'md', label: 'Medium (tablet)',  width: 768,  height: 432 },
-                  { name: 'sm', label: 'Small (mobile)',   width: 390,  height: 219 },
+                  { name: 'lg', height: 675, label: 'Large (desktop)', width: 1200 },
+                  { name: 'md', height: 432, label: 'Medium (tablet)', width: 768 },
+                  { name: 'sm', height: 219, label: 'Small (mobile)', width: 390 },
                 ],
               },
             ],
@@ -95,6 +96,28 @@ const buildConfigWithMemoryDB = async () => {
       await seed(payload)
     },
     plugins: [
+      s3Storage({
+        acl: 'public-read',
+        bucket: process.env.DO_SPACES_BUCKET!,
+        collections: {
+          media: {
+            generateFileURL: ({ filename, prefix }) => {
+              const parts = [process.env.DO_SPACES_CDN_ENDPOINT, prefix, filename].filter(Boolean)
+              return parts.join('/')
+            },
+            prefix: process.env.DO_SPACES_LOCATION,
+          },
+        },
+        config: {
+          credentials: {
+            accessKeyId: process.env.DO_SPACES_ACCESS_KEY!,
+            secretAccessKey: process.env.DO_SPACES_SECRET_KEY!,
+          },
+          endpoint: process.env.DO_SPACES_ENDPOINT!,
+          forcePathStyle: false,
+          region: process.env.DO_SPACES_REGION!,
+        },
+      }),
       cropImagePlugin({
         mediaCollectionSlug: 'media',
         mediaDir: path.resolve(dirname, 'media'),
