@@ -6,6 +6,7 @@ import type { CropImageFieldConfig, CropImagePluginConfig } from './types.js'
 
 import { makeGenerateCropHandler } from './handler.js'
 import { makeDeleteOrphanedCrops } from './hook.js'
+import { makeS3CropStorage } from './s3.js'
 
 export type {
   CropCoords,
@@ -14,16 +15,17 @@ export type {
   CropImageFieldConfig,
   CropImagePluginConfig,
   CropImageValue,
-  CropStorage,
   GeneratedUrls,
   ImageFormat,
   OnCropGeneratedContext,
+  S3CropConfig,
   SizeDefinition,
 } from './types.js'
 
 export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugin {
   const mediaSlug = pluginConfig.mediaCollectionSlug ?? 'media'
   const mediaDir = pluginConfig.mediaDir ?? path.join(process.cwd(), 'public/media')
+  const storage = pluginConfig.s3 ? makeS3CropStorage(pluginConfig.s3) : undefined
 
   return (incomingConfig: Config): Config => {
     const collections = (incomingConfig.collections ?? []).map((collection) => {
@@ -40,7 +42,7 @@ export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugi
               mediaDir,
               mediaSlug,
               pluginConfig.onCropGenerated,
-              pluginConfig.storage,
+              storage,
             ),
             method: 'post' as const,
             path: '/generate-crop',
@@ -50,7 +52,7 @@ export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugi
           ...collection.hooks,
           afterDelete: [
             ...(collection.hooks?.afterDelete ?? []),
-            makeDeleteOrphanedCrops(mediaDir, pluginConfig.storage),
+            makeDeleteOrphanedCrops(mediaDir, storage),
           ],
         },
       }

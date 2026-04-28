@@ -1,6 +1,6 @@
 {
   "name": "payload-plugin-image-cropper",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "A Payload CMS plugin that adds image cropping functionality to upload fields.",
   "license": "MIT",
   "type": "module",
@@ -46,6 +46,7 @@
     "test:int": "vitest"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1038.0",
     "@eslint/eslintrc": "^3.3.5",
     "@payloadcms/db-mongodb": "3.80.0",
     "@payloadcms/db-postgres": "3.80.0",

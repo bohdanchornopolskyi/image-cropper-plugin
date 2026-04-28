@@ -117,10 +117,29 @@ const buildConfigWithMemoryDB = async () => {
           forcePathStyle: false,
           region: process.env.DO_SPACES_REGION!,
         },
+        disableLocalStorage: false,
       }),
       cropImagePlugin({
         mediaCollectionSlug: 'media',
         mediaDir: path.resolve(dirname, 'media'),
+        s3: {
+          acl: 'public-read',
+          bucket: process.env.DO_SPACES_BUCKET!,
+          config: {
+            credentials: {
+              accessKeyId: process.env.DO_SPACES_ACCESS_KEY!,
+              secretAccessKey: process.env.DO_SPACES_SECRET_KEY!,
+            },
+            endpoint: process.env.DO_SPACES_ENDPOINT!,
+            forcePathStyle: false,
+            region: process.env.DO_SPACES_REGION!,
+          },
+          generateUrl: ({ filename, prefix }) => {
+            const parts = [process.env.DO_SPACES_CDN_ENDPOINT, prefix, filename].filter(Boolean)
+            return parts.join('/')
+          },
+          prefix: process.env.DO_SPACES_LOCATION,
+        },
       }),
     ],
     secret: process.env.PAYLOAD_SECRET || 'test-secret_key',

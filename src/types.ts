@@ -93,25 +93,51 @@ export type OnCropGeneratedContext = {
   mediaId: number | string
 }
 
-/**
- * Cloud storage adapter for crop files.
- * When provided, all local disk I/O is bypassed — the adapter owns storage
- * entirely.
- */
+/** Internal cloud storage adapter used by the `s3` option and custom integrations. */
 export type CropStorage = {
-  /**
-   * Called when the source media document is deleted.
-   * Receives the filename base (e.g. `'my-photo'`) and should remove every
-   * associated crop object (e.g. all S3 keys whose name starts with
-   * `my-photo-crop-`). If omitted, orphaned crop files in cloud storage will
-   * not be cleaned up automatically.
-   */
   deleteCropsByBase?: (filenameBase: string) => Promise<void>
-  /**
-   * Upload a generated crop buffer and return its public URL.
-   * The local disk write is skipped entirely when this is provided.
-   */
   upload: (ctx: OnCropGeneratedContext) => Promise<{ url: string }>
+}
+
+/**
+ * S3 / S3-compatible storage configuration for crop files.
+ * Mirrors the shape of `@payloadcms/storage-s3` so you can reuse the same
+ * values — no AWS SDK imports needed in your config.
+ */
+export type S3CropConfig = {
+  /** Object ACL. Typically `'public-read'` for publicly-served crops. */
+  acl?: 'authenticated-read' | 'aws-exec-read' | 'bucket-owner-full-control' | 'bucket-owner-read' | 'private' | 'public-read' | 'public-read-write'
+  /** S3 bucket name. */
+  bucket: string
+  /** S3 client configuration — same object you pass to `@payloadcms/storage-s3`. */
+  config: {
+    credentials?: {
+      accessKeyId: string
+      secretAccessKey: string
+    }
+    /** Custom endpoint for S3-compatible providers (DigitalOcean Spaces, MinIO, etc.). */
+    endpoint?: string
+    forcePathStyle?: boolean
+    region: string
+  }
+  /**
+   * Build the public URL for a crop file.
+   * Receives the same `filename` and `prefix` values passed to the plugin so
+   * you can reuse the same `generateFileURL` function from `s3Storage`:
+   *
+   * ```ts
+   * generateUrl: ({ filename, prefix }) => {
+   *   const parts = [process.env.CDN_ENDPOINT, prefix, filename].filter(Boolean)
+   *   return parts.join('/')
+   * }
+   * ```
+   */
+  generateUrl: (args: { filename: string; prefix?: string }) => string
+  /**
+   * Key prefix inside the bucket (e.g. `'crops'` → key becomes `crops/filename`).
+   * Mirrors the `prefix` option in `@payloadcms/storage-s3` collection config.
+   */
+  prefix?: string
 }
 
 export type CropImagePluginConfig = {
@@ -127,26 +153,27 @@ export type CropImagePluginConfig = {
    */
   mediaDir?: string
   /**
+   * S3 / S3-compatible storage for generated crop files.
+   *
+   * When set, crops are uploaded to the bucket (via `PutObject`) instead of
+   * local disk, and are cleaned up automatically (via `ListObjects` +
+   * `DeleteObject`) when the source media document is deleted.
+   *
+   * The config shape mirrors `@payloadcms/storage-s3` so you can reuse the
+   * same values without any additional imports.
+   */
+  s3?: S3CropConfig
+  /**
    * Called after each crop is generated, before the URL is stored.
    *
-   * Return `{ url }` to override the stored URL (e.g. with an S3 CDN URL)
-   * **and** skip the local disk write — your callback owns storage.
-   * Return nothing (or `undefined`) to fall back to the default local-disk write.
+   * Return `{ url }` to override the stored URL and skip the local disk write.
+   * Return nothing to fall back to the default local-disk write.
    *
-   * @deprecated Prefer the `storage` option which also handles deletion.
+   * @deprecated Prefer the `s3` option for S3/S3-compatible storage.
    */
   onCropGenerated?: (
     ctx: OnCropGeneratedContext,
   ) => Promise<{ url: string } | void> | { url: string } | void
-  /**
-   * Cloud storage adapter. When set, all local disk I/O is skipped — crops are
-   * uploaded via `storage.upload` and (optionally) cleaned up via
-   * `storage.deleteCropsByBase`. Takes precedence over `onCropGenerated`.
-   *
-   * Use this when Payload is configured with S3 / GCS / Azure Blob / any cloud
-   * storage and you want crop files to live in the same bucket.
-   */
-  storage?: CropStorage
 }
 
 export type CropImageFieldConfig = {
