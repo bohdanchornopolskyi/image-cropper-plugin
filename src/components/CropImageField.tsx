@@ -206,7 +206,6 @@ function CropModal({
             <img
               alt="Crop source"
               className={styles.cropImg}
-              crossOrigin="anonymous"
               draggable={false}
               onLoad={onImageLoad}
               ref={imgRef}
