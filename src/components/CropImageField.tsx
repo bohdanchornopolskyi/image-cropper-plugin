@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import ReactCrop, { centerCrop, makeAspectCrop, type PercentCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
@@ -92,11 +92,45 @@ function XSvg() {
   )
 }
 
+function getMinNaturalPx(def: CropDefinition): { w: number; h: number } {
+  if (def.sizes) {
+    const largest = def.sizes.reduce((a, b) => (a.width > b.width ? a : b))
+    return { w: largest.width, h: largest.height }
+  }
+  return { w: def.width, h: def.height }
+}
+
+function minCropPct(
+  def: CropDefinition | undefined,
+  nw: number,
+  nh: number,
+): { w: number; h: number } | undefined {
+  if (!def) return undefined
+  const min = getMinNaturalPx(def)
+  return { w: Math.min((min.w / nw) * 100, 100), h: Math.min((min.h / nh) * 100, 100) }
+}
+
+function getCropHint(
+  activeDef: CropDefinition,
+  minCrop: { tooSmall: boolean; naturalMin: { w: number; h: number } } | undefined,
+  imgSize: { naturalW: number; naturalH: number } | null,
+): string {
+  if (minCrop?.tooSmall && imgSize) {
+    return `Source image (${imgSize.naturalW}×${imgSize.naturalH}) is smaller than target (${minCrop.naturalMin.w}×${minCrop.naturalMin.h}) — output will be upscaled`
+  }
+  if (activeDef.sizes) {
+    const n = activeDef.sizes.length
+    return `${activeDef.label} — ${n} size${n === 1 ? '' : 's'}`
+  }
+  return `${activeDef.label} — ${activeDef.width} × ${activeDef.height} px`
+}
+
 function initCrop(
   mediaWidth: number,
   mediaHeight: number,
   aspect: number | undefined,
   existing: CropCoords | undefined,
+  minPct?: { w: number; h: number },
 ): PercentCrop {
   if (existing) {
     return {
@@ -107,14 +141,22 @@ function initCrop(
       height: existing.height,
     }
   }
+  const startWidth = Math.max(90, minPct?.w ?? 0)
   if (aspect) {
     return centerCrop(
-      makeAspectCrop({ unit: '%', width: 90 }, aspect, mediaWidth, mediaHeight),
+      makeAspectCrop({ unit: '%', width: startWidth }, aspect, mediaWidth, mediaHeight),
       mediaWidth,
       mediaHeight,
     )
   }
-  return { unit: '%', x: 5, y: 5, width: 90, height: 90 }
+  const startHeight = Math.max(90, minPct?.h ?? 0)
+  return {
+    unit: '%',
+    x: Math.max(0, (100 - startWidth) / 2),
+    y: Math.max(0, (100 - startHeight) / 2),
+    width: startWidth,
+    height: startHeight,
+  }
 }
 
 function percentCropToCoords(pct: PercentCrop): CropCoords {
@@ -140,15 +182,40 @@ function CropModal({
   const [pendingCrops, setPendingCrops] = useState<CropData>(initialCropData)
   const [percentCrop, setPercentCrop] = useState<PercentCrop | undefined>()
   const imgRef = useRef<HTMLImageElement>(null)
+  const [imgSize, setImgSize] = useState<{
+    naturalW: number
+    naturalH: number
+    renderedW: number
+    renderedH: number
+  } | null>(null)
 
-  const activeDef = cropDefinitions.find((d) => d.name === activeTab)
+  const activeDef = useMemo(
+    () => cropDefinitions.find((d) => d.name === activeTab),
+    [cropDefinitions, activeTab],
+  )
+
+  const minCrop = useMemo(() => {
+    if (!imgSize || !activeDef) return undefined
+    const naturalMin = getMinNaturalPx(activeDef)
+    const cappedW = Math.min(naturalMin.w, imgSize.naturalW)
+    const cappedH = Math.min(naturalMin.h, imgSize.naturalH)
+    return {
+      minWidth: Math.round(cappedW * (imgSize.renderedW / imgSize.naturalW)),
+      minHeight: Math.round(cappedH * (imgSize.renderedH / imgSize.naturalH)),
+      tooSmall: imgSize.naturalW < naturalMin.w || imgSize.naturalH < naturalMin.h,
+      naturalMin,
+    }
+  }, [imgSize, activeDef])
+
+  const isTooSmall = minCrop?.tooSmall ?? false
 
   const onImageLoad = useCallback(
     (e: React.SyntheticEvent<HTMLImageElement>) => {
-      const { naturalWidth: w, naturalHeight: h } = e.currentTarget
-      setPercentCrop(initCrop(w, h, activeDef?.aspectRatio, pendingCrops[activeTab]))
+      const { naturalWidth: nw, naturalHeight: nh, offsetWidth: rw, offsetHeight: rh } = e.currentTarget
+      setImgSize({ naturalW: nw, naturalH: nh, renderedW: rw, renderedH: rh })
+      setPercentCrop(initCrop(nw, nh, activeDef?.aspectRatio, pendingCrops[activeTab], minCropPct(activeDef, nw, nh)))
     },
-    [activeDef?.aspectRatio, pendingCrops, activeTab],
+    [activeDef, pendingCrops, activeTab],
   )
 
   const switchTab = (name: string) => {
@@ -158,9 +225,10 @@ function CropModal({
     setActiveTab(name)
     const def = cropDefinitions.find((d) => d.name === name)
     const existing = pendingCrops[name] ?? initialCropData[name]
-    const img = imgRef.current
-    if (img) {
-      setPercentCrop(initCrop(img.naturalWidth, img.naturalHeight, def?.aspectRatio, existing))
+    const nw = imgSize?.naturalW
+    const nh = imgSize?.naturalH
+    if (nw && nh) {
+      setPercentCrop(initCrop(nw, nh, def?.aspectRatio, existing, minCropPct(def, nw, nh)))
     } else {
       setPercentCrop(existing ? { unit: '%', ...existing } : undefined)
     }
@@ -201,6 +269,8 @@ function CropModal({
             aspect={activeDef?.aspectRatio}
             crop={percentCrop}
             keepSelection
+            minHeight={minCrop?.minHeight}
+            minWidth={minCrop?.minWidth}
             onChange={(_, pct) => setPercentCrop(pct)}
           >
             <img
@@ -216,10 +286,7 @@ function CropModal({
 
         <div className={styles.modalFooter}>
           <span className={styles.cropHint}>
-            {activeDef &&
-              (activeDef.sizes
-                ? `${activeDef.label} — ${activeDef.sizes.length} size${activeDef.sizes.length === 1 ? '' : 's'}`
-                : `${activeDef.label} — ${activeDef.width} × ${activeDef.height} px`)}
+            {activeDef && getCropHint(activeDef, minCrop, imgSize)}
           </span>
           <div className={styles.footerActions}>
             <button className={styles.btnGhost} onClick={onClose} type="button">
