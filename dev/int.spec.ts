@@ -12,7 +12,7 @@ import type { CropImageValue } from '../src/types.js'
 
 import { makeGenerateCropHandler } from '../src/handler.js'
 import { makeDeleteOrphanedCrops } from '../src/hook.js'
-import { cropImageField, cropImagePlugin } from '../src/index.js'
+import { cropImageField, cropImagePlugin, createCropImage } from '../src/index.js'
 import { buildCropRequests } from '../src/crop-requests.js'
 import { getCropUrl, resolveMediaCrop } from '../src/utilities.js'
 
@@ -192,6 +192,72 @@ describe('cropImagePlugin', () => {
   })
 })
 
+// ---------------------------------------------------------------------------
+// Unit tests – createCropImage
+// ---------------------------------------------------------------------------
+
+describe('createCropImage', () => {
+  const baseConfig = (): Config =>
+    ({
+      collections: [
+        { slug: 'posts', fields: [] },
+        { slug: 'media', fields: [] },
+        { slug: 'files', fields: [] },
+      ],
+    }) as unknown as Config
+
+  test('plugin and field both default to the "media" collection slug', () => {
+    const { plugin, field } = createCropImage()
+
+    const result = plugin(baseConfig()) as unknown as Config
+    const media = result.collections?.find((c) => c.slug === 'media')
+    const endpoints = media?.endpoints as Array<{ path: string }> | undefined
+    expect(endpoints?.some((e) => e.path === '/generate-crop')).toBe(true)
+
+    const f = field({ name: 'hero', crops: [] }) as unknown as TestGroupField
+    expect(f.admin?.components?.Field?.clientProps?.generateCropEndpoint).toBe(
+      '/api/media/generate-crop',
+    )
+  })
+
+  test('plugin and field both use the same custom mediaCollectionSlug', () => {
+    const { plugin, field } = createCropImage({ mediaCollectionSlug: 'files' })
+
+    const result = plugin(baseConfig()) as unknown as Config
+    const files = result.collections?.find((c) => c.slug === 'files')
+    const endpoints = files?.endpoints as Array<{ path: string }> | undefined
+    expect(endpoints?.some((e) => e.path === '/generate-crop')).toBe(true)
+
+    const f = field({ name: 'hero', crops: [] }) as unknown as TestGroupField
+    expect(f.admin?.components?.Field?.clientProps?.generateCropEndpoint).toBe(
+      '/api/files/generate-crop',
+    )
+  })
+
+  test('plugin does not touch other collections', () => {
+    const { plugin } = createCropImage({ mediaCollectionSlug: 'files' })
+    const result = plugin(baseConfig()) as unknown as Config
+    const posts = result.collections?.find((c) => c.slug === 'posts')
+    expect(posts?.endpoints).toBeUndefined()
+  })
+
+  test('field still accepts all other CropImageFieldConfig options', () => {
+    const crops = [{ name: 'banner', label: 'Banner', width: 800, height: 200 }]
+    const { field } = createCropImage({ mediaCollectionSlug: 'files' })
+    const f = field({
+      name: 'hero',
+      label: 'Hero Image',
+      crops,
+      required: true,
+    }) as unknown as TestGroupField
+    expect(f.name).toBe('hero')
+    expect(f.label).toBe('Hero Image')
+    expect(f.admin?.components?.Field?.clientProps?.cropDefinitions).toEqual(crops)
+    const imageField = f.fields.find((sub) => sub.name === 'image')
+    expect(imageField?.required).toBe(true)
+    expect(imageField?.relationTo).toBe('files')
+  })
+})
 
 // ---------------------------------------------------------------------------
 // Unit tests – buildCropRequests

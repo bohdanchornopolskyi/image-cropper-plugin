@@ -4,7 +4,7 @@ import { s3Storage } from '@payloadcms/storage-s3'
 import { MongoMemoryReplSet } from 'mongodb-memory-server'
 import path from 'path'
 import { buildConfig } from 'payload'
-import { cropImageField, cropImagePlugin } from 'payload-plugin-image-cropper'
+import { createCropImage } from 'payload-plugin-image-cropper'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
@@ -30,6 +30,29 @@ const buildConfigWithMemoryDB = async () => {
     process.env.DATABASE_URL = `${memoryDB.getUri()}&retryWrites=true`
   }
 
+  const { plugin: cropPlugin, field: cropField } = createCropImage({
+    mediaCollectionSlug: 'media',
+    mediaDir: path.resolve(dirname, 'media'),
+    s3: {
+      acl: 'public-read',
+      bucket: process.env.DO_SPACES_BUCKET!,
+      config: {
+        credentials: {
+          accessKeyId: process.env.DO_SPACES_ACCESS_KEY!,
+          secretAccessKey: process.env.DO_SPACES_SECRET_KEY!,
+        },
+        endpoint: process.env.DO_SPACES_ENDPOINT!,
+        forcePathStyle: false,
+        region: process.env.DO_SPACES_REGION!,
+      },
+      generateUrl: ({ filename, prefix }) => {
+        const parts = [process.env.DO_SPACES_CDN_ENDPOINT, prefix, filename].filter(Boolean)
+        return parts.join('/')
+      },
+      prefix: process.env.DO_SPACES_LOCATION,
+    },
+  })
+
   return buildConfig({
     admin: {
       importMap: {
@@ -40,7 +63,7 @@ const buildConfigWithMemoryDB = async () => {
       {
         slug: 'posts',
         fields: [
-          cropImageField({
+          cropField({
             name: 'heroImage',
             crops: [
               {
@@ -60,7 +83,7 @@ const buildConfigWithMemoryDB = async () => {
             ],
             label: 'Hero Image',
           }),
-          cropImageField({
+          cropField({
             name: 'cardImage',
             crops: [
               {
@@ -75,6 +98,18 @@ const buildConfigWithMemoryDB = async () => {
               },
             ],
             label: 'Card Image',
+          }),
+          cropField({
+            name: 'cardImage2',
+            crops: [
+              {
+                name: 'card',
+                aspectRatio: 16 / 9,
+                label: 'Card (16:9)',
+                sizes: [{ name: 'sm', height: 219, label: 'Small (mobile)', width: 390 }],
+              },
+            ],
+            label: 'Card Image (2)',
           }),
         ],
       },
@@ -119,28 +154,7 @@ const buildConfigWithMemoryDB = async () => {
         },
         disableLocalStorage: false,
       }),
-      cropImagePlugin({
-        mediaCollectionSlug: 'media',
-        mediaDir: path.resolve(dirname, 'media'),
-        s3: {
-          acl: 'public-read',
-          bucket: process.env.DO_SPACES_BUCKET!,
-          config: {
-            credentials: {
-              accessKeyId: process.env.DO_SPACES_ACCESS_KEY!,
-              secretAccessKey: process.env.DO_SPACES_SECRET_KEY!,
-            },
-            endpoint: process.env.DO_SPACES_ENDPOINT!,
-            forcePathStyle: false,
-            region: process.env.DO_SPACES_REGION!,
-          },
-          generateUrl: ({ filename, prefix }) => {
-            const parts = [process.env.DO_SPACES_CDN_ENDPOINT, prefix, filename].filter(Boolean)
-            return parts.join('/')
-          },
-          prefix: process.env.DO_SPACES_LOCATION,
-        },
-      }),
+      cropPlugin,
     ],
     secret: process.env.PAYLOAD_SECRET || 'test-secret_key',
     sharp,

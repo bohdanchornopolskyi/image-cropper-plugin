@@ -62,6 +62,29 @@ export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugi
   }
 }
 
+/**
+ * Creates a plugin and a field factory that are guaranteed to target the same
+ * media collection. Use this instead of calling `cropImagePlugin` and
+ * `cropImageField` independently when your collection uses a non-default slug —
+ * that approach requires you to set `mediaCollectionSlug` in two places, and a
+ * mismatch silently causes 404s at crop generation time.
+ *
+ * @example
+ * const { plugin, field } = createCropImage({ mediaCollectionSlug: 'files' })
+ * // payload.config.ts  →  plugins: [plugin]
+ * // collection fields  →  field({ name: 'hero', crops: [...] })
+ */
+export function createCropImage(pluginConfig: CropImagePluginConfig = {}): {
+  plugin: Plugin
+  field: (config: Omit<CropImageFieldConfig, 'mediaCollectionSlug'>) => Field
+} {
+  const mediaSlug = pluginConfig.mediaCollectionSlug ?? 'media'
+  return {
+    plugin: cropImagePlugin(pluginConfig),
+    field: (fieldConfig) => cropImageField({ ...fieldConfig, mediaCollectionSlug: mediaSlug }),
+  }
+}
+
 export function cropImageField(config: CropImageFieldConfig): Field {
   const mediaSlug = config.mediaCollectionSlug ?? 'media'
 
