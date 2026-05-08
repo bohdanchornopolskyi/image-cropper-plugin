@@ -13,6 +13,7 @@ import type { CropImageValue } from '../src/types.js'
 import { makeGenerateCropHandler } from '../src/handler.js'
 import { makeDeleteOrphanedCrops } from '../src/hook.js'
 import { cropImageField, cropImagePlugin } from '../src/index.js'
+import { buildCropRequests } from '../src/crop-requests.js'
 import { getCropUrl, resolveMediaCrop } from '../src/utilities.js'
 
 /**
@@ -188,6 +189,88 @@ describe('cropImagePlugin', () => {
     const endpoints = media?.endpoints as Array<{ method: string; path: string }> | undefined
     const cropEndpoint = endpoints?.find((e) => e.path === '/generate-crop')
     expect(cropEndpoint?.method).toBe('post')
+  })
+})
+
+
+// ---------------------------------------------------------------------------
+// Unit tests – buildCropRequests
+// ---------------------------------------------------------------------------
+
+describe('buildCropRequests', () => {
+  const coords = { x: 10, y: 20, width: 80, height: 60 }
+
+  test('returns one request for a single-size crop definition', () => {
+    const reqs = buildCropRequests(
+      [{ name: 'hero', label: 'Hero', width: 1920, height: 1080 }],
+      { hero: coords },
+      'abc123',
+    )
+    expect(reqs).toHaveLength(1)
+    expect(reqs[0]?.key).toBe('hero')
+    expect(reqs[0]?.body).toMatchObject({
+      cropData: coords,
+      cropName: 'hero',
+      mediaId: 'abc123',
+      outputWidth: 1920,
+      outputHeight: 1080,
+      format: 'webp',
+      quality: 80,
+    })
+  })
+
+  test('returns one request per size for a multi-size crop definition', () => {
+    const reqs = buildCropRequests(
+      [
+        {
+          name: 'card',
+          label: 'Card',
+          sizes: [
+            { name: 'desktop', label: 'Desktop', width: 1200, height: 675 },
+            { name: 'mobile', label: 'Mobile', width: 600, height: 338 },
+          ],
+        },
+      ],
+      { card: coords },
+      42,
+    )
+    expect(reqs).toHaveLength(2)
+    expect(reqs[0]?.key).toBe('card.desktop')
+    expect(reqs[0]?.body.outputWidth).toBe(1200)
+    expect(reqs[1]?.key).toBe('card.mobile')
+    expect(reqs[1]?.body.outputWidth).toBe(600)
+  })
+
+  test('skips a crop definition when coordinates are missing from finalCrops', () => {
+    const reqs = buildCropRequests(
+      [
+        { name: 'hero', label: 'Hero', width: 1920, height: 1080 },
+        { name: 'thumb', label: 'Thumb', width: 300, height: 300 },
+      ],
+      { hero: coords },
+      1,
+    )
+    expect(reqs).toHaveLength(1)
+    expect(reqs[0]?.key).toBe('hero')
+  })
+
+  test('honours explicit format and quality from the crop definition', () => {
+    const reqs = buildCropRequests(
+      [{ name: 'banner', label: 'Banner', width: 800, height: 200, format: 'jpeg', quality: 90 }],
+      { banner: coords },
+      1,
+    )
+    expect(reqs[0]?.body.format).toBe('jpeg')
+    expect(reqs[0]?.body.quality).toBe(90)
+  })
+
+  test('returns empty array when no crop coordinates exist at all', () => {
+    const reqs = buildCropRequests(
+      [{ name: 'hero', label: 'Hero', width: 1920, height: 1080 }],
+      {},
+      1,
+    )
+    expect(reqs).toHaveLength(0)
   })
 })
 

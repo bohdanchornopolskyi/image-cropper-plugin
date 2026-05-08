@@ -7,6 +7,7 @@ import 'react-image-crop/dist/ReactCrop.css'
 import { Button, useDocumentDrawer, useField, useListDrawer, useConfig } from '@payloadcms/ui'
 
 import type { CropCoords, CropData, CropDefinition, GeneratedUrls } from '../types.js'
+import { buildCropRequests } from '../crop-requests.js'
 import { isRecord } from '../isRecord.js'
 import styles from './CropImageField.module.css'
 
@@ -421,43 +422,27 @@ export function CropImageField({
     setModalOpen(false)
     setGenerating(true)
 
+    const requests = buildCropRequests(cropDefinitions, finalCrops, media.id)
     const results = await Promise.all(
-      cropDefinitions.flatMap((def) => {
-        const coords = finalCrops[def.name]
-        if (!coords) return []
-
-        const targets = def.sizes
-          ? def.sizes.map((s) => ({ key: `${def.name}.${s.name}`, width: s.width, height: s.height }))
-          : [{ key: def.name, width: def.width, height: def.height }]
-
-        return targets.map(({ key, width, height }) =>
-          fetch(endpoint, {
-            body: JSON.stringify({
-              cropData: coords,
-              cropName: key,
-              format: def.format ?? 'webp',
-              mediaId: media.id,
-              outputHeight: height,
-              outputWidth: width,
-              quality: def.quality ?? 80,
-            }),
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            method: 'POST',
+      requests.map(({ key, body }) =>
+        fetch(endpoint, {
+          body: JSON.stringify(body),
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+        })
+          .then((res) => res.json())
+          .then((data: unknown) => {
+            if (isRecord(data) && typeof data.url === 'string') {
+              return { name: key, url: data.url }
+            }
+            return null
           })
-            .then((res) => res.json())
-            .then((data: unknown) => {
-              if (isRecord(data) && typeof data.url === 'string') {
-                return { name: key, url: data.url }
-              }
-              return null
-            })
-            .catch((e: unknown) => {
-              console.error(`[CropImageField] Network error for crop "${key}":`, e)
-              return null
-            }),
-        )
-      }),
+          .catch((e: unknown) => {
+            console.error(`[CropImageField] Network error for crop "${key}":`, e)
+            return null
+          }),
+      ),
     )
 
     const newUrls: GeneratedUrls = { ...(generatedUrls ?? {}) }
