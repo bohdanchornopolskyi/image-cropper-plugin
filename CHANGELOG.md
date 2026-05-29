@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.1] - 2026-05-29
+
+### Fixed
+
+- **Layout shift in the crop field UI** ([#1]). The filled field now renders as a single
+  fixed-height row matching Payload's native upload field, so adding an image, generating
+  crops, or removing the image no longer pushes the rest of the page up or down. Previously
+  the inline crop-size previews only appeared after crops were generated, which changed the
+  field's height and shifted surrounding content.
+
+### Changed
+
+- Generated crop/size previews moved out of the inline row into a dedicated, read-only
+  **"Crops & Sizes"** modal, opened from a new preview button on the field. This keeps the
+  field compact while giving a larger, clearer view of every generated size and its
+  dimensions.
+
+---
+
 ## [0.1.0] - 2026-05-08
 
 ### Added
