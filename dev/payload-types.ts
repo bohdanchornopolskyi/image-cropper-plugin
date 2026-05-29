@@ -146,6 +146,48 @@ export interface Post {
       | boolean
       | null;
   };
+  cardImage?: {
+    image?: (string | null) | Media;
+    cropData?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    generatedUrls?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+  };
+  cardImage2?: {
+    image?: (string | null) | Media;
+    cropData?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    generatedUrls?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -276,6 +318,20 @@ export interface PayloadMigration {
  */
 export interface PostsSelect<T extends boolean = true> {
   heroImage?:
+    | T
+    | {
+        image?: T;
+        cropData?: T;
+        generatedUrls?: T;
+      };
+  cardImage?:
+    | T
+    | {
+        image?: T;
+        cropData?: T;
+        generatedUrls?: T;
+      };
+  cardImage2?:
     | T
     | {
         image?: T;

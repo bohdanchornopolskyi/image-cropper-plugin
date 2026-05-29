@@ -93,6 +93,17 @@ function XSvg() {
   )
 }
 
+function GridIcon() {
+  return (
+    <Icon>
+      <rect height="7" rx="1" width="7" x="3" y="3" />
+      <rect height="7" rx="1" width="7" x="14" y="3" />
+      <rect height="7" rx="1" width="7" x="3" y="14" />
+      <rect height="7" rx="1" width="7" x="14" y="14" />
+    </Icon>
+  )
+}
+
 type MinCrop = {
   displayWidth: number
   displayHeight: number
@@ -330,6 +341,97 @@ function CropModal({
   )
 }
 
+function CropCards({
+  cropDefinitions,
+  crops,
+  urls,
+}: {
+  cropDefinitions: CropDefinition[]
+  crops: CropData
+  urls: GeneratedUrls
+}) {
+  return (
+    <div className={styles.cropCards}>
+      {cropDefinitions.flatMap((def) => {
+        if (def.sizes) {
+          return def.sizes.map((size) => {
+            const key = `${def.name}.${size.name}`
+            const url = urls[key]
+            return (
+              <div className={styles.cropCard} key={key}>
+                {url ? (
+                  <img
+                    alt={`${def.label} — ${size.label ?? size.name}`}
+                    className={styles.cropCardImg}
+                    src={url}
+                  />
+                ) : (
+                  <div className={styles.cropCardEmpty}>
+                    <span
+                      className={`${styles.dot}${crops[def.name] ? ` ${styles.dotSet}` : ''}`}
+                    />
+                  </div>
+                )}
+                <span className={styles.cropCardLabel}>{def.label}</span>
+                <span className={styles.cropCardSize}>
+                  {size.label ?? size.name} — {size.width}×{size.height}
+                </span>
+              </div>
+            )
+          })
+        }
+        const url = urls[def.name]
+        return [
+          <div className={styles.cropCard} key={def.name}>
+            {url ? (
+              <img alt={def.label} className={styles.cropCardImg} src={url} />
+            ) : (
+              <div className={styles.cropCardEmpty}>
+                <span className={`${styles.dot}${crops[def.name] ? ` ${styles.dotSet}` : ''}`} />
+              </div>
+            )}
+            <span className={styles.cropCardLabel}>{def.label}</span>
+            <span className={styles.cropCardSize}>
+              {def.width}×{def.height}
+            </span>
+          </div>,
+        ]
+      })}
+    </div>
+  )
+}
+
+type PreviewModalProps = {
+  cropDefinitions: CropDefinition[]
+  crops: CropData
+  urls: GeneratedUrls
+  onClose: () => void
+}
+
+function PreviewModal({ cropDefinitions, crops, urls, onClose }: PreviewModalProps) {
+  return createPortal(
+    <div
+      className={styles.backdrop}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className={styles.previewModal}>
+        <div className={styles.modalHeader}>
+          <h2 className={styles.modalTitle}>Crops &amp; Sizes</h2>
+          <button aria-label="Close" className={styles.modalClose} onClick={onClose} type="button">
+            ✕
+          </button>
+        </div>
+        <div className={styles.previewBody}>
+          <CropCards cropDefinitions={cropDefinitions} crops={crops} urls={urls} />
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 export function CropImageField({
   path,
   cropDefinitions = [],
@@ -432,6 +534,7 @@ export function CropImageField({
   )
 
   const [modalOpen, setModalOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
   const [generating, setGenerating] = useState(false)
 
   const handleSave = async (finalCrops: CropData) => {
@@ -531,98 +634,57 @@ export function CropImageField({
           </div>
         </div>
       ) : (
-        <div className={`file-details ${styles.selectedWrap}`}>
-          <header className={styles.selectedHeader}>
-            <img alt={media.alt ?? ''} className={styles.thumb} src={media.url ?? ''} />
+        <div className={styles.fileRow}>
+          <img alt={media.alt ?? ''} className={styles.thumb} src={media.url ?? ''} />
 
-            <div className={styles.mainDetail}>
-              <span className={styles.filename}>{media.filename}</span>
-              {fileMeta && <span className={styles.fileMeta}>{fileMeta}</span>}
-              {generating && <span className={styles.generating}>Generating crops…</span>}
-            </div>
+          <div className={styles.mainDetail}>
+            <span className={styles.filename}>{media.filename}</span>
+            {generating ? (
+              <span className={styles.generating}>Generating crops…</span>
+            ) : (
+              fileMeta && <span className={styles.fileMeta}>{fileMeta}</span>
+            )}
+          </div>
 
-            <div className={styles.iconActions}>
+          <div className={styles.iconActions}>
+            {cropDefinitions.length > 0 && (
               <button
                 className={styles.iconBtn}
-                disabled={readOnly || generating}
-                onClick={() => setModalOpen(true)}
-                title={allCropsReady || anyCropSet ? 'Edit Crops' : 'Crop Image'}
+                onClick={() => setPreviewOpen(true)}
+                title="Preview crops & sizes"
                 type="button"
               >
-                <CropIcon />
+                <GridIcon />
               </button>
-              <button
-                className={styles.iconBtn}
-                disabled={readOnly}
-                onClick={openMediaDrawer}
-                title="Change image"
-                type="button"
-              >
-                <EditSvg />
-              </button>
-              <button
-                className={styles.iconBtn}
-                disabled={readOnly}
-                onClick={remove}
-                title="Remove"
-                type="button"
-              >
-                <XSvg />
-              </button>
-            </div>
-          </header>
-
-          {cropDefinitions.length > 0 && (
-            <div className={styles.cropCards}>
-              {cropDefinitions.flatMap((def) => {
-                if (def.sizes) {
-                  return def.sizes.map((size) => {
-                    const key = `${def.name}.${size.name}`
-                    const url = urls[key]
-                    return (
-                      <div className={styles.cropCard} key={key}>
-                        {url ? (
-                          <img
-                            alt={`${def.label} — ${size.label ?? size.name}`}
-                            className={styles.cropCardImg}
-                            src={url}
-                          />
-                        ) : (
-                          <div className={styles.cropCardEmpty}>
-                            <span
-                              className={`${styles.dot}${crops[def.name] ? ` ${styles.dotSet}` : ''}`}
-                            />
-                          </div>
-                        )}
-                        <span className={styles.cropCardLabel}>{def.label}</span>
-                        <span className={styles.cropCardSize}>
-                          {size.label ?? size.name} — {size.width}×{size.height}
-                        </span>
-                      </div>
-                    )
-                  })
-                }
-                const url = urls[def.name]
-                return [
-                  <div className={styles.cropCard} key={def.name}>
-                    {url ? (
-                      <img alt={def.label} className={styles.cropCardImg} src={url} />
-                    ) : (
-                      <div className={styles.cropCardEmpty}>
-                        <span
-                          className={`${styles.dot}${crops[def.name] ? ` ${styles.dotSet}` : ''}`}
-                        />
-                      </div>
-                    )}
-                    <span className={styles.cropCardLabel}>{def.label}</span>
-                    <span className={styles.cropCardSize}>
-                      {def.width}×{def.height}
-                    </span>
-                  </div>,
-                ]
-              })}
-            </div>
-          )}
+            )}
+            <button
+              className={styles.iconBtn}
+              disabled={readOnly || generating}
+              onClick={() => setModalOpen(true)}
+              title={allCropsReady || anyCropSet ? 'Edit Crops' : 'Crop Image'}
+              type="button"
+            >
+              <CropIcon />
+            </button>
+            <button
+              className={styles.iconBtn}
+              disabled={readOnly}
+              onClick={openMediaDrawer}
+              title="Change image"
+              type="button"
+            >
+              <EditSvg />
+            </button>
+            <button
+              className={styles.iconBtn}
+              disabled={readOnly}
+              onClick={remove}
+              title="Remove"
+              type="button"
+            >
+              <XSvg />
+            </button>
+          </div>
         </div>
       )}
 
@@ -633,6 +695,15 @@ export function CropImageField({
           mediaUrl={media.url}
           onClose={() => setModalOpen(false)}
           onSave={handleSave}
+        />
+      )}
+
+      {previewOpen && (
+        <PreviewModal
+          cropDefinitions={cropDefinitions}
+          crops={crops}
+          onClose={() => setPreviewOpen(false)}
+          urls={urls}
         />
       )}
 
