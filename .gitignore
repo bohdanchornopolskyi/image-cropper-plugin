@@ -50,3 +50,6 @@ next-env.d.ts
 /playwright/.cache/
 
 .npmrc
+
+.agents/
+.claude/
