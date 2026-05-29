@@ -246,9 +246,28 @@ function CropModal({
     })
   }
 
+  // Only treat a backdrop click as a close request when the press *started* on the
+  // backdrop itself. Otherwise a crop drag that begins inside the modal and releases
+  // over the backdrop would fire a click on the backdrop and close the window.
+  const pressStartedOnBackdrop = useRef(false)
+
+  const handleBackdropMouseDown = (e: React.MouseEvent) => {
+    pressStartedOnBackdrop.current = e.target === e.currentTarget
+  }
+
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget && pressStartedOnBackdrop.current) {
+      onClose()
+    }
+  }
+
   return createPortal(
-    <div className={styles.backdrop} onClick={onClose}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+    <div
+      className={styles.backdrop}
+      onClick={handleBackdropClick}
+      onMouseDown={handleBackdropMouseDown}
+    >
+      <div className={styles.modal}>
         <div className={styles.modalHeader}>
           <h2 className={styles.modalTitle}>Crop Image</h2>
           <button aria-label="Close" className={styles.modalClose} onClick={onClose} type="button">
