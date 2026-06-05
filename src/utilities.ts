@@ -1,6 +1,20 @@
-import type { CropImageValue } from './types.js'
+import type { CropImageValue, StaticLabel } from './types.js'
 
 import { isRecord } from './isRecord.js'
+
+/**
+ * Resolves a Payload `StaticLabel` to a plain string for the given locale.
+ * Falls back to `'en'`, then to the first available translation.
+ */
+export function resolveLabel(label: StaticLabel | undefined, lang: string): string {
+  if (!label) {
+    return ''
+  }
+  if (typeof label === 'string') {
+    return label
+  }
+  return label[lang] ?? label['en'] ?? Object.values(label)[0] ?? ''
+}
 
 /**
  * Returns the pre-generated crop URL for the given slot, or falls back to the

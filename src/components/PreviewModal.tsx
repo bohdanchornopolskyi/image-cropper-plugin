@@ -3,6 +3,7 @@
 import { createPortal } from 'react-dom'
 
 import type { CropData, CropDefinition, GeneratedUrls } from '../types.js'
+import { useResolveLabel } from './useResolveLabel.js'
 import styles from './CropImageField.module.css'
 
 function CropCards({
@@ -14,25 +15,30 @@ function CropCards({
   crops: CropData
   urls: GeneratedUrls
 }) {
-  const cards = cropDefinitions.flatMap((def) =>
-    def.sizes
-      ? def.sizes.map((size) => ({
-          key: `${def.name}.${size.name}`,
-          defName: def.name,
-          imgAlt: `${def.label} — ${size.label ?? size.name}`,
-          label: def.label,
-          size: `${size.label ?? size.name} — ${size.width}×${size.height}`,
-        }))
+  const resolveL = useResolveLabel()
+  const cards = cropDefinitions.flatMap((def) => {
+    const defLabel = resolveL(def.label)
+    return def.sizes
+      ? def.sizes.map((size) => {
+          const sizeLabel = resolveL(size.label) || size.name
+          return {
+            key: `${def.name}.${size.name}`,
+            defName: def.name,
+            imgAlt: `${defLabel} — ${sizeLabel}`,
+            label: defLabel,
+            size: `${sizeLabel} — ${size.width}×${size.height}`,
+          }
+        })
       : [
           {
             key: def.name,
             defName: def.name,
-            imgAlt: def.label,
-            label: def.label,
+            imgAlt: defLabel,
+            label: defLabel,
             size: `${def.width}×${def.height}`,
           },
-        ],
-  )
+        ]
+  })
 
   return (
     <div className={styles.cropCards}>

@@ -1,1 +1,1 @@
-export { getCropUrl, resolveMediaCrop } from '../utilities.js'
+export { getCropUrl, resolveLabel, resolveMediaCrop } from '../utilities.js'

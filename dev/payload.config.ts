@@ -59,6 +59,13 @@ const buildConfigWithMemoryDB = async () => {
         baseDir: path.resolve(dirname),
       },
     },
+    i18n: {
+      fallbackLanguage: 'en',
+      supportedLanguages: await Promise.all([
+        import('@payloadcms/translations/languages/de'),
+        import('@payloadcms/translations/languages/en'),
+      ]).then(([{ de }, { en }]) => ({ de, en })),
+    },
     collections: [
       {
         slug: 'posts',
@@ -70,18 +77,18 @@ const buildConfigWithMemoryDB = async () => {
                 name: 'desktop',
                 aspectRatio: 16 / 9,
                 height: 1080,
-                label: 'Desktop',
+                label: { en: 'Desktop', de: 'Desktop' },
                 width: 1920,
               },
               {
                 name: 'mobile',
                 aspectRatio: 9 / 16,
                 height: 1470,
-                label: 'Mobile',
+                label: { en: 'Mobile', de: 'Mobil' },
                 width: 828,
               },
             ],
-            label: 'Hero Image',
+            label: { en: 'Hero Image', de: 'Heldenbild' },
           }),
           cropField({
             name: 'cardImage',
@@ -89,15 +96,15 @@ const buildConfigWithMemoryDB = async () => {
               {
                 name: 'card',
                 aspectRatio: 16 / 9,
-                label: 'Card (16:9)',
+                label: { en: 'Card (16:9)', de: 'Karte (16:9)' },
                 sizes: [
-                  { name: 'lg', height: 675, label: 'Large (desktop)', width: 1200 },
-                  { name: 'md', height: 432, label: 'Medium (tablet)', width: 768 },
-                  { name: 'sm', height: 219, label: 'Small (mobile)', width: 390 },
+                  { name: 'lg', height: 675, label: { en: 'Large (desktop)', de: 'Groß (Desktop)' }, width: 1200 },
+                  { name: 'md', height: 432, label: { en: 'Medium (tablet)', de: 'Mittel (Tablet)' }, width: 768 },
+                  { name: 'sm', height: 219, label: { en: 'Small (mobile)', de: 'Klein (Mobil)' }, width: 390 },
                 ],
               },
             ],
-            label: 'Card Image',
+            label: { en: 'Card Image', de: 'Kartenbild' },
           }),
           cropField({
             name: 'cardImage2',
@@ -105,11 +112,11 @@ const buildConfigWithMemoryDB = async () => {
               {
                 name: 'card',
                 aspectRatio: 16 / 9,
-                label: 'Card (16:9)',
-                sizes: [{ name: 'sm', height: 219, label: 'Small (mobile)', width: 390 }],
+                label: { en: 'Card (16:9)', de: 'Karte (16:9)' },
+                sizes: [{ name: 'sm', height: 219, label: { en: 'Small (mobile)', de: 'Klein (Mobil)' }, width: 390 }],
               },
             ],
-            label: 'Card Image (2)',
+            label: { en: 'Card Image (2)', de: 'Kartenbild (2)' },
           }),
         ],
       },

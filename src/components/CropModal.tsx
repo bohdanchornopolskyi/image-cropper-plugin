@@ -7,6 +7,7 @@ import 'react-image-crop/dist/ReactCrop.css'
 
 import type { CropData, CropDefinition } from '../types.js'
 import { computeMinCrop, initCrop, percentCropToCoords, type MinCrop } from '../crop-geometry.js'
+import { useResolveLabel } from './useResolveLabel.js'
 import styles from './CropImageField.module.css'
 
 type CropModalProps = {
@@ -24,6 +25,7 @@ export function CropModal({
   onClose,
   onSave,
 }: CropModalProps) {
+  const resolveL = useResolveLabel()
   const [activeTab, setActiveTab] = useState<string>(cropDefinitions[0]?.name ?? '')
   const [pendingCrops, setPendingCrops] = useState<CropData>(initialCropData)
   const [percentCrop, setPercentCrop] = useState<PercentCrop | undefined>()
@@ -31,6 +33,7 @@ export function CropModal({
   const imgRef = useRef<HTMLImageElement>(null)
 
   const activeDef = cropDefinitions.find((d) => d.name === activeTab)
+  const activeLabel = activeDef ? resolveL(activeDef.label) : ''
 
   const onImageLoad = useCallback(
     (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -105,7 +108,7 @@ export function CropModal({
               onClick={() => switchTab(def.name)}
               type="button"
             >
-              {def.label}
+              {resolveL(def.label)}
             </button>
           ))}
         </div>
@@ -134,8 +137,8 @@ export function CropModal({
           <span className={styles.cropHint}>
             {activeDef &&
               (activeDef.sizes
-                ? `${activeDef.label} — ${activeDef.sizes.length} size${activeDef.sizes.length === 1 ? '' : 's'}`
-                : `${activeDef.label} — ${activeDef.width} × ${activeDef.height} px`)}
+                ? `${activeLabel} — ${activeDef.sizes.length} size${activeDef.sizes.length === 1 ? '' : 's'}`
+                : `${activeLabel} — ${activeDef.width} × ${activeDef.height} px`)}
           </span>
           <div className={styles.footerActions}>
             <button className={styles.btnGhost} onClick={onClose} type="button">

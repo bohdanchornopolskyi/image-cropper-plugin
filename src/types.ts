@@ -1,3 +1,7 @@
+import type { StaticLabel } from 'payload'
+
+export type { StaticLabel }
+
 /** Output image format for Sharp processing */
 export type ImageFormat = 'jpeg' | 'png' | 'webp'
 
@@ -6,7 +10,7 @@ export type SizeDefinition = {
   /** Output image height in pixels */
   height: number
   /** Human-readable label shown in preview cards. Defaults to `name`. */
-  label?: string
+  label?: StaticLabel
   /** Machine-readable size name. Stored as `cropName.sizeName` in generatedUrls. */
   name: string
   /** Output image width in pixels */
@@ -22,7 +26,7 @@ export type CropDefinition = {
   /** Output format. Defaults to 'webp'. */
   format?: ImageFormat
   /** Human-readable label shown in the crop modal tabs */
-  label: string
+  label: StaticLabel
   /** Machine-readable slot name, used as the key in cropData and generatedUrls */
   name: string
   /** Sharp quality, 1–100. Defaults to 80. Ignored for PNG. */
@@ -106,7 +110,14 @@ export type CropStorage = {
  */
 export type S3CropConfig = {
   /** Object ACL. Typically `'public-read'` for publicly-served crops. */
-  acl?: 'authenticated-read' | 'aws-exec-read' | 'bucket-owner-full-control' | 'bucket-owner-read' | 'private' | 'public-read' | 'public-read-write'
+  acl?:
+    | 'authenticated-read'
+    | 'aws-exec-read'
+    | 'bucket-owner-full-control'
+    | 'bucket-owner-read'
+    | 'private'
+    | 'public-read'
+    | 'public-read-write'
   /** S3 bucket name. */
   bucket: string
   /** S3 client configuration — same object you pass to `@payloadcms/storage-s3`. */
@@ -153,6 +164,17 @@ export type CropImagePluginConfig = {
    */
   mediaDir?: string
   /**
+   * Called after each crop is generated, before the URL is stored.
+   *
+   * Return `{ url }` to override the stored URL and skip the local disk write.
+   * Return nothing to fall back to the default local-disk write.
+   *
+   * @deprecated Prefer the `s3` option for S3/S3-compatible storage.
+   */
+  onCropGenerated?: (
+    ctx: OnCropGeneratedContext,
+  ) => { url: string } | Promise<{ url: string } | void> | void
+  /**
    * S3 / S3-compatible storage for generated crop files.
    *
    * When set, crops are uploaded to the bucket (via `PutObject`) instead of
@@ -163,17 +185,6 @@ export type CropImagePluginConfig = {
    * same values without any additional imports.
    */
   s3?: S3CropConfig
-  /**
-   * Called after each crop is generated, before the URL is stored.
-   *
-   * Return `{ url }` to override the stored URL and skip the local disk write.
-   * Return nothing to fall back to the default local-disk write.
-   *
-   * @deprecated Prefer the `s3` option for S3/S3-compatible storage.
-   */
-  onCropGenerated?: (
-    ctx: OnCropGeneratedContext,
-  ) => Promise<{ url: string } | void> | { url: string } | void
 }
 
 export type CropImageFieldConfig = {
@@ -182,7 +193,7 @@ export type CropImageFieldConfig = {
     description?: string
   }
   crops: CropDefinition[]
-  label?: string
+  label?: StaticLabel
   /** Override if your media collection uses a non-default slug. Defaults to 'media'. */
   mediaCollectionSlug?: string
   name: string

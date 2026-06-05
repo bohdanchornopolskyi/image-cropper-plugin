@@ -2,7 +2,8 @@
 
 import { Button, useConfig } from '@payloadcms/ui'
 
-import type { CropDefinition } from '../types.js'
+import type { CropDefinition, StaticLabel } from '../types.js'
+import { useResolveLabel } from './useResolveLabel.js'
 import { CropModal } from './CropModal.js'
 import { PreviewModal } from './PreviewModal.js'
 import { CropIcon, EditSvg, GridIcon, XSvg } from './icons.js'
@@ -12,7 +13,7 @@ import styles from './CropImageField.module.css'
 type Props = {
   path: string
   cropDefinitions?: CropDefinition[]
-  fieldLabel?: string
+  fieldLabel?: StaticLabel
   mediaCollectionSlug?: string
   generateCropEndpoint?: string
   readOnly?: boolean
@@ -21,13 +22,15 @@ type Props = {
 export function CropImageField({
   path,
   cropDefinitions = [],
-  fieldLabel = 'Image',
+  fieldLabel,
   mediaCollectionSlug = 'media',
   generateCropEndpoint,
   readOnly,
 }: Props) {
   const { config } = useConfig()
+  const resolveL = useResolveLabel()
   const apiRoute = config.routes.api || '/api'
+  const resolvedFieldLabel = resolveL(fieldLabel ?? 'Image')
   const endpoint = generateCropEndpoint ?? `${apiRoute}/${mediaCollectionSlug}/generate-crop`
 
   const {
@@ -55,7 +58,7 @@ export function CropImageField({
   return (
     <div className={styles.wrap}>
       <div className={styles.labelWrap}>
-        <label className={styles.label}>{fieldLabel}</label>
+        <label className={styles.label}>{resolvedFieldLabel}</label>
       </div>
 
       {!media ? (
