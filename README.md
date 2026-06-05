@@ -11,6 +11,7 @@ A [Payload CMS 3.x](https://payloadcms.com) plugin that adds interactive image c
 - **S3 / cloud storage** — `onCropGenerated` callback receives the Sharp buffer and can upload to any storage provider, returning a CDN URL
 - **Automatic cleanup** — crop files are deleted when the source media is removed
 - **Frontend utilities** — `getCropUrl` and `resolveMediaCrop` helpers for templates
+- **Localized labels** — `label` fields accept a `Record<string, string>` locale map (Payload's `StaticLabel` type); the admin panel resolves the correct language automatically
 - **TypeScript-first** — full types exported for all config and values
 
 ## Requirements
@@ -218,7 +219,7 @@ Generated URLs are stored under compound keys: `card.lg`, `card.md`, `card.sm`.
 |---|---|---|---|
 | `name` | `string` | — | **Required.** Field name in the document |
 | `crops` | `CropDefinition[]` | — | **Required.** Array of crop presets |
-| `label` | `string` | — | Display label in the admin panel |
+| `label` | `string \| Record<string, string>` | — | Display label in the admin panel. Accepts a locale map (see [Localized labels](#localized-labels)). |
 | `required` | `boolean` | `false` | Whether a selection is required |
 | `mediaCollectionSlug` | `string` | `'media'` | Override the media collection slug for this field |
 | `admin.condition` | `function` | — | Conditionally show this field |
@@ -233,7 +234,7 @@ A crop preset is either a **single-size** variant (specify `width` + `height`) o
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `name` | `string` | — | **Required.** Unique machine-readable key (e.g. `'desktop'`) |
-| `label` | `string` | — | **Required.** Human-readable tab label in the crop modal |
+| `label` | `string \| Record<string, string>` | — | **Required.** Human-readable tab label in the crop modal. Accepts a locale map (see [Localized labels](#localized-labels)). |
 | `width` | `number` | — | **Required.** Output image width in pixels |
 | `height` | `number` | — | **Required.** Output image height in pixels |
 | `aspectRatio` | `number` | — | Constrain the crop selection (e.g. `16 / 9`) |
@@ -245,7 +246,7 @@ A crop preset is either a **single-size** variant (specify `width` + `height`) o
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `name` | `string` | — | **Required.** Unique machine-readable key (e.g. `'card'`) |
-| `label` | `string` | — | **Required.** Human-readable tab label in the crop modal |
+| `label` | `string \| Record<string, string>` | — | **Required.** Human-readable tab label in the crop modal. Accepts a locale map. |
 | `sizes` | `SizeDefinition[]` | — | **Required.** Output sizes to generate from this crop region |
 | `aspectRatio` | `number` | — | Constrain the crop selection |
 | `format` | `'webp' \| 'jpeg' \| 'png'` | `'webp'` | Output image format (applies to all sizes) |
@@ -258,14 +259,67 @@ A crop preset is either a **single-size** variant (specify `width` + `height`) o
 | `name` | `string` | **Required.** Size key suffix (e.g. `'lg'`). Combined with the crop name as `card.lg`. |
 | `width` | `number` | **Required.** Output width in pixels |
 | `height` | `number` | **Required.** Output height in pixels |
-| `label` | `string` | Human-readable label shown in the admin UI |
+| `label` | `string \| Record<string, string>` | Human-readable label shown in the admin UI. Accepts a locale map. |
+
+## Localized labels
+
+Every `label` field in `cropImageField`, `CropDefinition`, and `SizeDefinition` accepts either a plain string or a locale map matching Payload's [`StaticLabel`](https://payloadcms.com/docs/fields/overview#field-options) type (`Record<string, string>`). The admin panel resolves the correct language automatically based on the editor's active language, falling back to `'en'`, then the first available key.
+
+```ts
+cropImageField({
+  name: 'heroImage',
+  label: { en: 'Hero Image', de: 'Heldenbild' },
+  crops: [
+    {
+      name: 'desktop',
+      label: { en: 'Desktop', de: 'Desktop' },
+      width: 1920,
+      height: 1080,
+      aspectRatio: 16 / 9,
+    },
+    {
+      name: 'mobile',
+      label: { en: 'Mobile', de: 'Mobil' },
+      width: 828,
+      height: 1470,
+      aspectRatio: 9 / 16,
+    },
+  ],
+})
+```
+
+With multi-size crops:
+
+```ts
+cropImageField({
+  name: 'cardImage',
+  label: { en: 'Card Image', de: 'Kartenbild' },
+  crops: [
+    {
+      name: 'card',
+      label: { en: 'Card (16:9)', de: 'Karte (16:9)' },
+      aspectRatio: 16 / 9,
+      sizes: [
+        { name: 'lg', label: { en: 'Large (desktop)', de: 'Groß (Desktop)' }, width: 1200, height: 675 },
+        { name: 'md', label: { en: 'Medium (tablet)', de: 'Mittel (Tablet)' }, width: 768,  height: 432 },
+        { name: 'sm', label: { en: 'Small (mobile)',  de: 'Klein (Mobil)'  }, width: 390,  height: 219 },
+      ],
+    },
+  ],
+})
+```
+
+Locale maps work alongside Payload's `i18n` config — no extra setup is required in the plugin.
 
 ## Using crops in your frontend
 
 ### Single-size crops
 
 ```ts
-import { getCropUrl, resolveMediaCrop } from 'payload-plugin-image-cropper/utilities'
+import { getCropUrl, resolveMediaCrop, resolveLabel } from 'payload-plugin-image-cropper/utilities'
+
+// Resolve a StaticLabel to a string
+const label = resolveLabel({ en: 'Hero Image', de: 'Heldenbild' }, 'de') // → 'Heldenbild'
 
 // URL for a named crop
 const url = getCropUrl(post.heroImage, 'desktop')
