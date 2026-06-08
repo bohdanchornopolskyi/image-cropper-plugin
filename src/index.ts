@@ -7,6 +7,7 @@ import type { CropImageFieldConfig, CropImagePluginConfig } from './types.js'
 import { makeGenerateCropHandler } from './handler.js'
 import { makeDeleteOrphanedCrops } from './hook.js'
 import { makeS3CropStorage } from './s3.js'
+import { de as pluginTranslationsDe, en as pluginTranslationsEn } from './translations/index.js'
 
 export type {
   CropCoords,
@@ -58,7 +59,21 @@ export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugi
       }
     })
 
-    return { ...incomingConfig, collections }
+    const existingTranslations = (incomingConfig.i18n?.translations ?? {}) as Record<
+      string,
+      Record<string, unknown>
+    >
+    const translations = {
+      ...existingTranslations,
+      de: { ...existingTranslations['de'], 'plugin-image-cropper': pluginTranslationsDe },
+      en: { ...existingTranslations['en'], 'plugin-image-cropper': pluginTranslationsEn },
+    }
+
+    return {
+      ...incomingConfig,
+      collections,
+      i18n: { ...incomingConfig.i18n, translations } as Config['i18n'],
+    }
   }
 }
 
@@ -75,13 +90,13 @@ export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugi
  * // collection fields  →  field({ name: 'hero', crops: [...] })
  */
 export function createCropImage(pluginConfig: CropImagePluginConfig = {}): {
-  plugin: Plugin
   field: (config: Omit<CropImageFieldConfig, 'mediaCollectionSlug'>) => Field
+  plugin: Plugin
 } {
   const mediaSlug = pluginConfig.mediaCollectionSlug ?? 'media'
   return {
-    plugin: cropImagePlugin(pluginConfig),
     field: (fieldConfig) => cropImageField({ ...fieldConfig, mediaCollectionSlug: mediaSlug }),
+    plugin: cropImagePlugin(pluginConfig),
   }
 }
 

@@ -3,6 +3,7 @@
 import { Button, useConfig } from '@payloadcms/ui'
 
 import type { CropDefinition, StaticLabel } from '../types.js'
+import { usePluginTranslation } from './usePluginTranslation.js'
 import { useResolveLabel } from './useResolveLabel.js'
 import { CropModal } from './CropModal.js'
 import { PreviewModal } from './PreviewModal.js'
@@ -29,6 +30,7 @@ export function CropImageField({
 }: Props) {
   const { config } = useConfig()
   const resolveL = useResolveLabel()
+  const t = usePluginTranslation()
   const apiRoute = config.routes.api || '/api'
   const resolvedFieldLabel = resolveL(fieldLabel ?? 'Image')
   const endpoint = generateCropEndpoint ?? `${apiRoute}/${mediaCollectionSlug}/generate-crop`
@@ -72,9 +74,9 @@ export function CropImageField({
                 size="small"
                 type="button"
               >
-                Create New
+                {t('createNew')}
               </Button>
-              <span className="upload__dropzoneContent__orText">or</span>
+              <span className="upload__dropzoneContent__orText">{t('or')}</span>
               <Button
                 buttonStyle="pill"
                 disabled={readOnly}
@@ -82,10 +84,10 @@ export function CropImageField({
                 size="small"
                 type="button"
               >
-                Choose from existing
+                {t('chooseFromExisting')}
               </Button>
             </div>
-            <p className="upload__dragAndDropText">or drag and drop a file</p>
+            <p className="upload__dragAndDropText">{t('dragAndDropFile')}</p>
           </div>
         </div>
       ) : (
@@ -95,7 +97,7 @@ export function CropImageField({
           <div className={styles.mainDetail}>
             <span className={styles.filename}>{media.filename}</span>
             {generating ? (
-              <span className={styles.generating}>Generating crops…</span>
+              <span className={styles.generating}>{t('generatingCrops')}</span>
             ) : (
               fileMeta && <span className={styles.fileMeta}>{fileMeta}</span>
             )}
@@ -106,7 +108,7 @@ export function CropImageField({
               <button
                 className={styles.iconBtn}
                 onClick={() => setPreviewOpen(true)}
-                title="Preview crops & sizes"
+                title={t('previewCropsAndSizes')}
                 type="button"
               >
                 <GridIcon />
@@ -116,7 +118,7 @@ export function CropImageField({
               className={styles.iconBtn}
               disabled={readOnly || generating}
               onClick={() => setModalOpen(true)}
-              title={allCropsReady || anyCropSet ? 'Edit Crops' : 'Crop Image'}
+              title={allCropsReady || anyCropSet ? t('editCrops') : t('cropImage')}
               type="button"
             >
               <CropIcon />
@@ -125,7 +127,7 @@ export function CropImageField({
               className={styles.iconBtn}
               disabled={readOnly}
               onClick={openMediaDrawer}
-              title="Change image"
+              title={t('changeImage')}
               type="button"
             >
               <EditSvg />
@@ -134,7 +136,7 @@ export function CropImageField({
               className={styles.iconBtn}
               disabled={readOnly}
               onClick={remove}
-              title="Remove"
+              title={t('remove')}
               type="button"
             >
               <XSvg />

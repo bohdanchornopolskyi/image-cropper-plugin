@@ -3,6 +3,7 @@
 import { createPortal } from 'react-dom'
 
 import type { CropData, CropDefinition, GeneratedUrls } from '../types.js'
+import { usePluginTranslation } from './usePluginTranslation.js'
 import { useResolveLabel } from './useResolveLabel.js'
 import styles from './CropImageField.module.css'
 
@@ -70,6 +71,7 @@ type PreviewModalProps = {
 }
 
 export function PreviewModal({ cropDefinitions, crops, urls, onClose }: PreviewModalProps) {
+  const t = usePluginTranslation()
   return createPortal(
     <div
       className={styles.backdrop}
@@ -79,8 +81,13 @@ export function PreviewModal({ cropDefinitions, crops, urls, onClose }: PreviewM
     >
       <div className={styles.previewModal}>
         <div className={styles.modalHeader}>
-          <h2 className={styles.modalTitle}>Crops &amp; Sizes</h2>
-          <button aria-label="Close" className={styles.modalClose} onClick={onClose} type="button">
+          <h2 className={styles.modalTitle}>{t('cropsAndSizes')}</h2>
+          <button
+            aria-label={t('close')}
+            className={styles.modalClose}
+            onClick={onClose}
+            type="button"
+          >
             ✕
           </button>
         </div>

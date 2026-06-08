@@ -7,6 +7,7 @@ import 'react-image-crop/dist/ReactCrop.css'
 
 import type { CropData, CropDefinition } from '../types.js'
 import { computeMinCrop, initCrop, percentCropToCoords, type MinCrop } from '../crop-geometry.js'
+import { usePluginTranslation } from './usePluginTranslation.js'
 import { useResolveLabel } from './useResolveLabel.js'
 import styles from './CropImageField.module.css'
 
@@ -25,6 +26,7 @@ export function CropModal({
   onClose,
   onSave,
 }: CropModalProps) {
+  const t = usePluginTranslation()
   const resolveL = useResolveLabel()
   const [activeTab, setActiveTab] = useState<string>(cropDefinitions[0]?.name ?? '')
   const [pendingCrops, setPendingCrops] = useState<CropData>(initialCropData)
@@ -94,8 +96,13 @@ export function CropModal({
     >
       <div className={styles.modal}>
         <div className={styles.modalHeader}>
-          <h2 className={styles.modalTitle}>Crop Image</h2>
-          <button aria-label="Close" className={styles.modalClose} onClick={onClose} type="button">
+          <h2 className={styles.modalTitle}>{t('cropImage')}</h2>
+          <button
+            aria-label={t('close')}
+            className={styles.modalClose}
+            onClick={onClose}
+            type="button"
+          >
             ✕
           </button>
         </div>
@@ -123,7 +130,7 @@ export function CropModal({
             onChange={(_, pct) => setPercentCrop(pct)}
           >
             <img
-              alt="Crop source"
+              alt={t('cropSource')}
               className={styles.cropImg}
               draggable={false}
               onLoad={onImageLoad}
@@ -137,15 +144,15 @@ export function CropModal({
           <span className={styles.cropHint}>
             {activeDef &&
               (activeDef.sizes
-                ? `${activeLabel} — ${activeDef.sizes.length} size${activeDef.sizes.length === 1 ? '' : 's'}`
+                ? `${activeLabel} — ${t('sizeCount', { count: activeDef.sizes.length })}`
                 : `${activeLabel} — ${activeDef.width} × ${activeDef.height} px`)}
           </span>
           <div className={styles.footerActions}>
             <button className={styles.btnGhost} onClick={onClose} type="button">
-              Cancel
+              {t('cancel')}
             </button>
             <button className={styles.btnPrimary} onClick={handleSave} type="button">
-              Save &amp; Generate
+              {t('saveAndGenerate')}
             </button>
           </div>
         </div>
