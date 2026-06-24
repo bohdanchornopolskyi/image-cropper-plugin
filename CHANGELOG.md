@@ -4,6 +4,54 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.3] - 2026-06-23
+
+### Fixed
+
+- **`payload` peer dependency** — widened the range from `^3.80.0` to `>=3.0.0` so the plugin
+  uses the host project's installed Payload version instead of pulling in a separate copy.
+  This fixes TypeScript errors like `Plugin` is not assignable when the host runs an older
+  Payload 3.x release (e.g. 3.72.0 vs 3.85.0).
+
+### Added
+
+- **Plugin UI translations** — built-in English and German strings for crop modal, preview
+  modal, and field chrome. The plugin registers its translation namespace via `i18n` in
+  `cropImagePlugin`, so labels switch when the admin user changes the UI language.
+
+---
+
+## [0.1.2] - 2026-06-05
+
+### Added
+
+- **Localized labels** — `CropDefinition.label`, `SizeDefinition.label`, and
+  `CropImageFieldConfig.label` now accept Payload's `StaticLabel` type (`string` or
+  `Record<string, string>`), so field and crop names can be translated per locale.
+
+  ```ts
+  cropField({
+    name: 'heroImage',
+    label: { en: 'Hero Image', de: 'Heldenbild' },
+    crops: [
+      {
+        name: 'desktop',
+        label: { en: 'Desktop', de: 'Desktop' },
+        width: 1920,
+        height: 1080,
+        aspectRatio: 16 / 9,
+      },
+    ],
+  })
+  ```
+
+- **`resolveLabel(label, lang)`** utility exported from `payload-plugin-image-cropper/utilities`.
+- **`StaticLabel`** type re-exported from the main entry point.
+
+Plain strings continue to work with no changes required.
+
+---
+
 ## [0.1.1] - 2026-05-29
 
 ### Fixed
