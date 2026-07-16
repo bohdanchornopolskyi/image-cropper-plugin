@@ -46,12 +46,26 @@ export function computeMinCrop(imgEl: HTMLImageElement, def: CropDefinition): Mi
   }
 }
 
+/** Percent-based focal point, as stored by Payload's native `focalPoint` upload option. */
+export type FocalPoint = { x: number; y: number }
+
+/** Payload's own default when an image has no focal point set yet. */
+export const DEFAULT_FOCAL: FocalPoint = { x: 50, y: 50 }
+
+/** Positions a crop of the given percent size so it's centered on the focal point. */
+function centerAtFocal(width: number, height: number, focal: FocalPoint): PercentCrop {
+  const x = Math.max(0, Math.min(focal.x - width / 2, 100 - width))
+  const y = Math.max(0, Math.min(focal.y - height / 2, 100 - height))
+  return { unit: '%', x, y, width, height }
+}
+
 export function initCrop(
   mediaWidth: number,
   mediaHeight: number,
   aspect: number | undefined,
   existing: CropCoords | undefined,
   minPct?: { pctWidth: number; pctHeight: number },
+  focal?: FocalPoint,
 ): PercentCrop {
   const minW = minPct?.pctWidth ?? 0
   const minH = minPct?.pctHeight ?? 0
@@ -80,16 +94,17 @@ export function initCrop(
     }
   }
 
+  // No crop has been chosen for this slot yet — default to the media's focal
+  // point (falling back to dead-center when none is set) instead of a plain
+  // geometric center, so focal point remains the primary positioning signal.
+  const focalPoint = focal ?? DEFAULT_FOCAL
   const startW = Math.max(90, minW)
   if (aspect) {
-    return centerCrop(
-      makeAspectCrop({ unit: '%', width: startW }, aspect, mediaWidth, mediaHeight),
-      mediaWidth,
-      mediaHeight,
-    )
+    const aspectCrop = makeAspectCrop({ unit: '%', width: startW }, aspect, mediaWidth, mediaHeight)
+    return centerAtFocal(aspectCrop.width, aspectCrop.height, focalPoint)
   }
   const startH = Math.max(90, minH)
-  return { unit: '%', x: (100 - startW) / 2, y: (100 - startH) / 2, width: startW, height: startH }
+  return centerAtFocal(startW, startH, focalPoint)
 }
 
 export function percentCropToCoords(pct: PercentCrop): CropCoords {

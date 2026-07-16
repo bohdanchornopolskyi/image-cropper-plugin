@@ -148,6 +148,8 @@ export function CropImageField({
       {modalOpen && media?.url && (
         <CropModal
           cropDefinitions={cropDefinitions}
+          focalX={media.focalX}
+          focalY={media.focalY}
           initialCropData={crops}
           mediaUrl={media.url}
           onClose={() => setModalOpen(false)}

@@ -6,13 +6,21 @@ import ReactCrop, { type PercentCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
 
 import type { CropData, CropDefinition } from '../types.js'
-import { computeMinCrop, initCrop, percentCropToCoords, type MinCrop } from '../crop-geometry.js'
+import {
+  computeMinCrop,
+  initCrop,
+  percentCropToCoords,
+  type FocalPoint,
+  type MinCrop,
+} from '../crop-geometry.js'
 import { usePluginTranslation } from './usePluginTranslation.js'
 import { useResolveLabel } from './useResolveLabel.js'
 import styles from './CropImageField.module.css'
 
 type CropModalProps = {
   cropDefinitions: CropDefinition[]
+  focalX?: null | number
+  focalY?: null | number
   initialCropData: CropData
   mediaUrl: string
   onClose: () => void
@@ -21,11 +29,16 @@ type CropModalProps = {
 
 export function CropModal({
   cropDefinitions,
+  focalX,
+  focalY,
   initialCropData,
   mediaUrl,
   onClose,
   onSave,
 }: CropModalProps) {
+  const focal: FocalPoint | undefined =
+    typeof focalX === 'number' && typeof focalY === 'number' ? { x: focalX, y: focalY } : undefined
+
   const t = usePluginTranslation()
   const resolveL = useResolveLabel()
   const [activeTab, setActiveTab] = useState<string>(cropDefinitions[0]?.name ?? '')
@@ -43,9 +56,9 @@ export function CropModal({
       const { naturalWidth: w, naturalHeight: h } = img
       const mc = activeDef ? computeMinCrop(img, activeDef) : undefined
       setMinCrop(mc)
-      setPercentCrop(initCrop(w, h, activeDef?.aspectRatio, pendingCrops[activeTab], mc))
+      setPercentCrop(initCrop(w, h, activeDef?.aspectRatio, pendingCrops[activeTab], mc, focal))
     },
-    [activeDef, pendingCrops, activeTab],
+    [activeDef, pendingCrops, activeTab, focal],
   )
 
   const switchTab = (name: string) => {
@@ -59,7 +72,9 @@ export function CropModal({
     if (img) {
       const mc = def ? computeMinCrop(img, def) : undefined
       setMinCrop(mc)
-      setPercentCrop(initCrop(img.naturalWidth, img.naturalHeight, def?.aspectRatio, existing, mc))
+      setPercentCrop(
+        initCrop(img.naturalWidth, img.naturalHeight, def?.aspectRatio, existing, mc, focal),
+      )
     } else {
       setMinCrop(undefined)
       setPercentCrop(existing ? { unit: '%', ...existing } : undefined)

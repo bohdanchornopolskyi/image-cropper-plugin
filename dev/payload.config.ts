@@ -124,6 +124,7 @@ const buildConfigWithMemoryDB = async () => {
         slug: 'media',
         fields: [],
         upload: {
+          focalPoint: true,
           staticDir: path.resolve(dirname, 'media'),
         },
       },

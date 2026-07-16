@@ -16,6 +16,8 @@ export type MediaDoc = {
   filesize?: number | null
   mimeType?: string | null
   alt?: string | null
+  focalX?: number | null
+  focalY?: number | null
 }
 
 function isMediaDoc(v: unknown): v is MediaDoc {
@@ -98,6 +100,8 @@ export function useCropImageField(args: {
         filesize: typeof doc.filesize === 'number' ? doc.filesize : null,
         mimeType: typeof doc.mimeType === 'string' ? doc.mimeType : null,
         alt: typeof doc.alt === 'string' ? doc.alt : null,
+        focalX: typeof doc.focalX === 'number' ? doc.focalX : null,
+        focalY: typeof doc.focalY === 'number' ? doc.focalY : null,
       }
       if (String(newDoc.id) !== String(imageId)) {
         setCropData(null)

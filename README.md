@@ -436,12 +436,22 @@ import { CropImageField } from 'payload-plugin-image-cropper/client'
 ## How it works
 
 1. The editor selects or uploads a media file in the field.
-2. They open the crop modal and define a crop region for each preset.
+2. They open the crop modal and define a crop region for each preset. If a preset hasn't been
+   cropped yet, the initial selection is centered on the image's focal point (from Payload's
+   native `focalPoint` upload option) instead of the plain geometric center — so focal point
+   remains the default positioning signal, and the manual crop is an optional per-breakpoint
+   override. When the media has no focal point set, this falls back to dead-center, matching
+   prior versions of the plugin.
 3. On save, the field calls the `/api/{mediaCollectionSlug}/generate-crop` endpoint once per size (multi-size crops fan out automatically).
 4. The endpoint uses Sharp to extract, resize, and encode each crop region to the configured format.
 5. Generated files are written to `mediaDir` on disk (or handed to `onCropGenerated` for cloud upload).
 6. The public URLs are stored in `generatedUrls` under their key (or compound key for multi-size).
 7. When the source media document is deleted, all associated crop files are removed automatically.
+
+> **Note:** for a preset an editor has never opened/saved, `getCropUrl`/`resolveMediaCrop` still
+> fall back to the plain original `image.url` (unchanged from prior versions) — the focal-point
+> default described above only applies to the crop modal's *initial* selection, not to frontend
+> rendering before any crop exists for that slot.
 
 ## License
 

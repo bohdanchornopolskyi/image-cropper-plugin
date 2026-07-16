@@ -14,6 +14,7 @@ import { makeGenerateCropHandler } from '../src/handler.js'
 import { makeDeleteOrphanedCrops } from '../src/hook.js'
 import { cropImageField, cropImagePlugin, createCropImage } from '../src/index.js'
 import { buildCropRequests } from '../src/crop-requests.js'
+import { initCrop } from '../src/crop-geometry.js'
 import { getCropUrl, resolveMediaCrop } from '../src/utilities.js'
 
 /**
@@ -337,6 +338,54 @@ describe('buildCropRequests', () => {
       1,
     )
     expect(reqs).toHaveLength(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Unit tests – initCrop (focal point default positioning)
+// ---------------------------------------------------------------------------
+
+describe('initCrop – focal point default positioning', () => {
+  test('with no existing crop and no focal point, defaults to dead-center (backward compatible)', () => {
+    const crop = initCrop(1000, 1000, undefined, undefined)
+    expect(crop).toMatchObject({ x: 5, y: 5, width: 90, height: 90 })
+  })
+
+  test('with no existing crop and a center focal point (50/50), matches the dead-center default', () => {
+    const crop = initCrop(1000, 1000, undefined, undefined, undefined, { x: 50, y: 50 })
+    expect(crop).toMatchObject({ x: 5, y: 5, width: 90, height: 90 })
+  })
+
+  test('with no existing crop, centers the default crop on an off-center focal point', () => {
+    const crop = initCrop(1000, 1000, undefined, undefined, undefined, { x: 20, y: 80 })
+    // width/height stay at the 90% default; x/y shift toward the focal point
+    expect(crop).toMatchObject({ x: 0, y: 10, width: 90, height: 90 })
+  })
+
+  test('clamps the focal-centered crop so it never exits the image bounds', () => {
+    const crop = initCrop(1000, 1000, undefined, undefined, undefined, { x: 2, y: 98 })
+    expect(crop.x).toBeGreaterThanOrEqual(0)
+    expect(crop.y).toBeGreaterThanOrEqual(0)
+    expect(crop.x! + crop.width!).toBeLessThanOrEqual(100)
+    expect(crop.y! + crop.height!).toBeLessThanOrEqual(100)
+  })
+
+  test('with an aspect ratio and an off-center focal point, centers the aspect-constrained crop on it', () => {
+    const withoutFocal = initCrop(1000, 1000, 16 / 9, undefined)
+    const withFocal = initCrop(1000, 1000, 16 / 9, undefined, undefined, { x: 10, y: 90 })
+
+    // Size stays governed by the aspect ratio, independent of the focal point
+    expect(withFocal.width).toBeCloseTo(withoutFocal.width!, 5)
+    expect(withFocal.height).toBeCloseTo(withoutFocal.height!, 5)
+    // Position shifts toward (and clamps at) the focal point
+    expect(withFocal.x).toBe(0)
+    expect(withFocal.y).toBeCloseTo(100 - withFocal.height!, 5)
+  })
+
+  test('an existing manual crop always wins over the focal point', () => {
+    const existing = { x: 10, y: 10, width: 50, height: 50 }
+    const crop = initCrop(1000, 1000, undefined, existing, undefined, { x: 90, y: 90 })
+    expect(crop).toMatchObject(existing)
   })
 })
 
