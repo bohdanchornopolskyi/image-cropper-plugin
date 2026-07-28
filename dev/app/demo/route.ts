@@ -2,7 +2,7 @@ import configPromise from '@payload-config'
 import { getPayload } from 'payload'
 
 import type { CropImageValue } from '../../../src/types.js'
-import { getCropUrl } from '../../../src/utilities.js'
+import { getCropUrl, getFocalPosition } from '../../../src/utilities.js'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,12 +12,29 @@ export async function GET() {
   const post = docs[0] as Record<string, unknown> | undefined
 
   const cardImage = (post?.cardImage ?? null) as CropImageValue | null
+  const heroImage = (post?.heroImage ?? null) as CropImageValue | null
 
   const lgUrl = getCropUrl(cardImage, 'card', 'lg')
   const mdUrl = getCropUrl(cardImage, 'card', 'md')
   const smUrl = getCropUrl(cardImage, 'card', 'sm')
 
   const hasCrops = Boolean(lgUrl || mdUrl || smUrl)
+
+  const heroDesktopUrl = getCropUrl(heroImage, 'desktop')
+  const heroMobileUrl = getCropUrl(heroImage, 'mobile')
+  const hasHeroCrops = Boolean(heroDesktopUrl || heroMobileUrl)
+
+  const heroRawImage =
+    heroImage?.image && typeof heroImage.image === 'object'
+      ? (heroImage.image as {
+          id?: number | string
+          focalX?: number
+          focalY?: number
+          url?: string
+        })
+      : null
+  const focalRawUrl = typeof heroRawImage?.url === 'string' ? heroRawImage.url : null
+  const focalPosition = getFocalPosition(heroRawImage)
 
   const nextImageLoaderExample = `\
 // Custom loader — maps Next.js width breakpoints to your pre-generated sizes.
@@ -133,6 +150,103 @@ cropImagePlugin({
     </picture>
     <div class="srcset-meta">Resize the browser to see the browser pick a different source.</div>
   </div>
+
+  <h2>Hero image crops <span class="tag">heroImage</span></h2>
+  ${post && !hasHeroCrops ? `<div class="notice">Post found but <strong>heroImage</strong> has not been cropped yet. <a href="/admin/collections/posts" style="color:#8fc98f">Open the post in admin</a>, set a hero image, and crop both the desktop and mobile presets.</div>` : ''}
+  <div class="grid">
+    ${['desktop', 'mobile'].map((name, i) => {
+      const url = [heroDesktopUrl, heroMobileUrl][i]
+      const label = [`Desktop — 1920×1080 (16:9)`, `Mobile — 828×1470 (9:16)`][i]
+      return `
+    <div class="card">
+      ${url
+        ? `<img src="${url}" alt="${label}" loading="lazy">`
+        : `<div class="card-placeholder">${name} not generated yet</div>`}
+      <div class="card-meta">
+        <strong>${label}</strong>
+        <span>key: ${name} &nbsp;·&nbsp; getCropUrl(post.heroImage, '${name}')</span>
+      </div>
+    </div>`
+    }).join('')}
+  </div>
+
+  <h2>Real-world hero banner <span class="tag">resize your actual browser window</span></h2>
+  <p style="color:#888;font-size:.85rem;margin-bottom:1rem;">
+    This is the realistic case: one full-width banner, fixed height, <code>object-fit: cover;
+    object-position: ${focalPosition ?? '50% 50%'}</code>. Now actually resize the browser window
+    (not a box on this page) — as it narrows, <code>cover</code> has to crop more off the sides, and
+    <code>object-position</code> is what decides which side gets kept. If you deliberately put the
+    focal point away from the bird (e.g. to the left), you should see the visible slice stay anchored
+    on the left as the window narrows — the bird can drift out of frame if that's where you placed the
+    point. That's expected: focal point isn't "keep the subject visible," it's "keep this exact spot
+    visible" — you place it on the subject yourself when that's what you want centered.
+  </p>
+  ${
+    focalRawUrl
+      ? `<div style="width:100%;height:380px;overflow:hidden;border-radius:8px;border:1px solid #2a2a2a;">
+    <img src="${focalRawUrl}" alt="Hero banner" style="width:100%;height:100%;object-fit:cover;object-position:${focalPosition ?? '50% 50%'};display:block;">
+  </div>
+  <p style="color:#888;font-size:.8rem;margin-top:.5rem;">object-position: <code>${focalPosition ?? '50% 50%'}</code></p>`
+      : `<div class="notice">No heroImage set yet — pick one to see this section.</div>`
+  }
+
+  <h2>Focal point without a crop <span class="tag">getFocalPosition</span></h2>
+  ${!heroRawImage ? `<div class="notice">No heroImage set yet — pick one to see this section.</div>` : ''}
+  ${heroRawImage && !focalPosition ? `<div class="notice">heroImage has no focal point set. Open it in the Media collection and drag the focal point dot, then reload this page.</div>` : ''}
+  <p style="color:#888;font-size:.85rem;margin-bottom:1rem;">
+    These boxes use the <strong>original, un-cropped</strong> image — no preset defined for any of these shapes.
+    Each one applies <code>object-fit: cover; object-position: ${focalPosition ?? '50% 50%'}</code>,
+    derived straight from the focal point on the Media doc. Compare where the subject lands across
+    shapes instead of resizing the browser — a baked crop wouldn't move at all, but this does, because
+    it's the same source image reframed live via CSS.
+  </p>
+  <div class="grid">
+    ${[
+      { label: 'Wide banner (21:9)', ratio: '21/9' },
+      { label: 'Square (1:1)', ratio: '1/1' },
+      { label: 'Portrait (3:4)', ratio: '3/4' },
+    ]
+      .map(
+        ({ label, ratio }) => `
+    <div class="card">
+      ${
+        focalRawUrl
+          ? `<div style="aspect-ratio:${ratio};overflow:hidden;"><img src="${focalRawUrl}" alt="${label}" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:${focalPosition ?? '50% 50%'};display:block;"></div>`
+          : `<div class="card-placeholder" style="aspect-ratio:${ratio};">no image</div>`
+      }
+      <div class="card-meta">
+        <strong>${label}</strong>
+        <span>object-position: ${focalPosition ?? '50% 50% (no focal point set)'}</span>
+      </div>
+    </div>`,
+      )
+      .join('')}
+  </div>
+
+  <h2>Focal point marker <span class="tag">raw focalX / focalY</span></h2>
+  <p style="color:#888;font-size:.85rem;margin-bottom:1rem;">
+    The most direct check: the full, un-cropped image (nothing trimmed — <code>object-fit: contain</code>)
+    with a marker drawn at the exact <code>focalX</code>/<code>focalY</code> percent stored on the Media
+    doc. If this dot isn't where you dragged it in the admin, the data is wrong; if it is, any framing
+    oddity in the cards above is just how <code>cover</code> crops that particular aspect ratio, not a
+    focal-point bug.
+  </p>
+  ${
+    focalRawUrl
+      ? `
+  <div style="position:relative;display:inline-block;max-width:100%;background:#000;border:1px solid #2a2a2a;border-radius:8px;overflow:hidden;">
+    <img src="${focalRawUrl}" alt="Full hero image" style="display:block;max-width:100%;height:auto;">
+    ${
+      heroRawImage && typeof heroRawImage.focalX === 'number' && typeof heroRawImage.focalY === 'number'
+        ? `<div style="position:absolute;left:${heroRawImage.focalX}%;top:${heroRawImage.focalY}%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;border:2px solid #ff3b3b;box-shadow:0 0 0 2px #fff, 0 0 8px rgba(0,0,0,.6);"></div>
+         <div style="position:absolute;left:${heroRawImage.focalX}%;top:0;bottom:0;width:1px;background:rgba(255,59,59,.5);"></div>
+         <div style="position:absolute;top:${heroRawImage.focalY}%;left:0;right:0;height:1px;background:rgba(255,59,59,.5);"></div>`
+        : ''
+    }
+  </div>
+  <p style="color:#888;font-size:.8rem;margin-top:.5rem;">focalX/focalY: <code>${heroRawImage?.focalX ?? '—'}, ${heroRawImage?.focalY ?? '—'}</code> — cross-check against <code>GET /api/media/${heroRawImage?.id ?? ''}</code> or the focal point dot position in <a href="/admin/collections/media/${heroRawImage?.id ?? ''}" style="color:#8fc98f">the Media admin editor</a>.</p>`
+      : ''
+  }
 
   <h2>Next.js Image — custom loader</h2>
   <pre>${nextImageLoaderExample.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>

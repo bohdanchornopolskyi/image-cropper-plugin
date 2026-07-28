@@ -332,6 +332,29 @@ const media = resolveMediaCrop(post.heroImage, 'mobile')
 
 Both helpers are safe to call with `null` or `undefined` — they return `''` / `null` respectively. When no generated crop exists yet, `getCropUrl` falls back to the original `image.url` so the field degrades gracefully before an editor has cropped the image.
 
+### Combining manual crops with focal point
+
+You don't have to choose between the manual cropper and Payload's focal point — `resolveMediaCrop` combines both automatically. When a slot has a saved crop, its baked file is used as-is. When it doesn't (yet), the returned object carries `objectPosition` — the media's focal point as a CSS value — so `object-fit: cover` frames the same subject the focal point marks, exactly like default Payload behavior:
+
+```tsx
+const media = resolveMediaCrop(post.heroImage, 'desktop')
+
+<img
+  src={media.url}
+  style={{ objectFit: 'cover', objectPosition: media.objectPosition ?? 'center' }}
+/>
+// Cropped → objectPosition is undefined, the baked file is already framed correctly.
+// Not cropped yet → objectPosition tracks the focal point, e.g. '80% 20%'.
+```
+
+This is also useful for ad-hoc shapes you haven't defined a preset for — e.g. a one-off 1:1 thumbnail. Use `getFocalPosition` directly on the raw media document:
+
+```ts
+import { getFocalPosition } from 'payload-plugin-image-cropper/utilities'
+
+const position = getFocalPosition(post.heroImage.image) // → '80% 20%' or undefined
+```
+
 ### Multi-size crops
 
 Pass the size name as the third argument to `getCropUrl`:
@@ -448,10 +471,12 @@ import { CropImageField } from 'payload-plugin-image-cropper/client'
 6. The public URLs are stored in `generatedUrls` under their key (or compound key for multi-size).
 7. When the source media document is deleted, all associated crop files are removed automatically.
 
-> **Note:** for a preset an editor has never opened/saved, `getCropUrl`/`resolveMediaCrop` still
-> fall back to the plain original `image.url` (unchanged from prior versions) — the focal-point
-> default described above only applies to the crop modal's *initial* selection, not to frontend
-> rendering before any crop exists for that slot.
+> **Note:** for a preset an editor has never opened/saved, `getCropUrl` still falls back to the
+> plain original `image.url` (unchanged from prior versions) — the focal-point default described
+> above only applies to the crop modal's *initial* selection, not to the raw URL. `resolveMediaCrop`
+> goes one step further and also returns `objectPosition` for that fallback case, so frontend code
+> can combine the original image with the focal point via `object-fit: cover` — see
+> [Combining manual crops with focal point](#combining-manual-crops-with-focal-point).
 
 ## License
 

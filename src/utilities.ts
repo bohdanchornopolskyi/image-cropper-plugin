@@ -52,9 +52,38 @@ export function getCropUrl(
 }
 
 /**
+ * Returns the `object-position` value (e.g. `"62% 30%"`) that keeps a media
+ * document's focal point framed under `object-fit: cover`. Returns
+ * `undefined` when no focal point is set, matching default Payload behavior
+ * for un-cropped renders.
+ *
+ * @param media  A media document (or relation ID / null) — typically
+ *               `value.image` from a cropImage group field, or any Payload
+ *               upload doc with `focalPoint: true`.
+ */
+export function getFocalPosition(
+  media: { focalX?: null | number; focalY?: null | number } | null | number | undefined,
+): string | undefined {
+  if (!isRecord(media)) {
+    return undefined
+  }
+  const { focalX, focalY } = media
+  if (typeof focalX !== 'number' || typeof focalY !== 'number') {
+    return undefined
+  }
+  return `${focalX}% ${focalY}%`
+}
+
+/**
  * Returns a Media-shaped object with the crop URL injected.
  * Falls back to the original media document when no generated URL exists.
  * Returns null if no image is set or it hasn't been populated (depth=0).
+ *
+ * When falling back to the original image (no crop saved yet for this slot),
+ * the returned object also carries `objectPosition` — the media's focal
+ * point as a CSS `object-position` value — so `object-fit: cover` frames the
+ * same subject a manual crop would have targeted. Once a crop is saved,
+ * `objectPosition` is omitted: the baked file is already framed correctly.
  *
  * @param value       The cropImage group field value from Payload
  * @param cropName    The slot name (must match a CropDefinition.name)
@@ -64,7 +93,13 @@ export function getCropUrl(
  *                    Equivalent to passing `"cropName.sizeName"` as cropName.
  */
 export function resolveMediaCrop<
-  T extends { height?: null | number; url?: null | string; width?: null | number },
+  T extends {
+    focalX?: null | number
+    focalY?: null | number
+    height?: null | number
+    url?: null | string
+    width?: null | number
+  },
 >(
   value:
     | { cropData?: unknown; generatedUrls?: unknown; image?: null | number | T }
@@ -73,7 +108,7 @@ export function resolveMediaCrop<
   cropName: string,
   outputSize?: { height: number; width: number },
   sizeName?: string,
-): null | T {
+): null | (T & { objectPosition?: string }) {
   if (!value) {
     return null
   }
@@ -82,8 +117,16 @@ export function resolveMediaCrop<
   const imageDoc: null | T =
     imageValue != null && typeof imageValue !== 'number' ? imageValue : null
 
+  if (!imageDoc) {
+    return null
+  }
+
+  const key = sizeName ? `${cropName}.${sizeName}` : cropName
+  const urls = value.generatedUrls
+  const isCropped = isRecord(urls) && typeof urls[key] === 'string'
+
   const url = getCropUrl(value, cropName, sizeName)
-  if (!url || !imageDoc) {
+  if (!url) {
     return imageDoc
   }
 
@@ -91,5 +134,6 @@ export function resolveMediaCrop<
     ...imageDoc,
     url,
     ...(outputSize ? { height: outputSize.height, width: outputSize.width } : {}),
+    ...(isCropped ? {} : { objectPosition: getFocalPosition(imageDoc) }),
   }
 }
