@@ -111,6 +111,7 @@ export function cropImageField(config: CropImageFieldConfig): Field {
         Field: {
           clientProps: {
             cropDefinitions: config.crops,
+            fieldDescription: config.admin?.description,
             fieldLabel: config.label ?? config.name,
             generateCropEndpoint: `/api/${mediaSlug}/generate-crop`,
             mediaCollectionSlug: mediaSlug,
@@ -128,6 +129,7 @@ export function cropImageField(config: CropImageFieldConfig): Field {
         type: 'upload',
         relationTo: mediaSlug,
         required: config.required ?? false,
+        ...(config.filterOptions !== undefined ? { filterOptions: config.filterOptions } : {}),
       },
       {
         name: 'cropData',

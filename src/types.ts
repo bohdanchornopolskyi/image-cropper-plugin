@@ -1,6 +1,6 @@
-import type { StaticLabel } from 'payload'
+import type { FilterOptions, StaticDescription, StaticLabel } from 'payload'
 
-export type { StaticLabel }
+export type { StaticDescription, StaticLabel }
 
 /** Output image format for Sharp processing */
 export type ImageFormat = 'jpeg' | 'png' | 'webp'
@@ -190,9 +190,16 @@ export type CropImagePluginConfig = {
 export type CropImageFieldConfig = {
   admin?: {
     condition?: (data: Record<string, unknown>, siblingData: Record<string, unknown>) => boolean
-    description?: string
+    description?: StaticDescription
   }
   crops: CropDefinition[]
+  /**
+   * Restrict which media documents can be selected in the picker drawer.
+   * Same semantics as the `filterOptions` option on Payload's `upload` field —
+   * accepts a static `Where` object or a function of `{ data, siblingData, user, req }`.
+   * Note: the "create new" drawer does not filter; server-side validation is the backstop.
+   */
+  filterOptions?: FilterOptions
   label?: StaticLabel
   /** Override if your media collection uses a non-default slug. Defaults to 'media'. */
   mediaCollectionSlug?: string

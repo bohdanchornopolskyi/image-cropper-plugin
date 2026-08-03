@@ -1,8 +1,8 @@
 'use client'
 
-import { Button, useConfig } from '@payloadcms/ui'
+import { Button, FieldDescription, useConfig } from '@payloadcms/ui'
 
-import type { CropDefinition, StaticLabel } from '../types.js'
+import type { CropDefinition, StaticDescription, StaticLabel } from '../types.js'
 import { usePluginTranslation } from './usePluginTranslation.js'
 import { useResolveLabel } from './useResolveLabel.js'
 import { CropModal } from './CropModal.js'
@@ -14,6 +14,7 @@ import styles from './CropImageField.module.css'
 type Props = {
   path: string
   cropDefinitions?: CropDefinition[]
+  fieldDescription?: StaticDescription
   fieldLabel?: StaticLabel
   mediaCollectionSlug?: string
   generateCropEndpoint?: string
@@ -23,6 +24,7 @@ type Props = {
 export function CropImageField({
   path,
   cropDefinitions = [],
+  fieldDescription,
   fieldLabel,
   mediaCollectionSlug = 'media',
   generateCropEndpoint,
@@ -62,6 +64,7 @@ export function CropImageField({
       <div className={styles.labelWrap}>
         <label className={styles.label}>{resolvedFieldLabel}</label>
       </div>
+      {fieldDescription ? <FieldDescription description={fieldDescription} path={path} /> : null}
 
       {!media ? (
         <div className="dropzone">
