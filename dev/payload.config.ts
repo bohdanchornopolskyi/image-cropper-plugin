@@ -62,6 +62,9 @@ const buildConfigWithMemoryDB = async () => {
     collections: [
       {
         slug: 'posts',
+        admin: {
+          preview: (doc) => `/demo?id=${doc.id}`,
+        },
         fields: [
           cropField({
             name: 'heroImage',
@@ -112,6 +115,8 @@ const buildConfigWithMemoryDB = async () => {
                 ],
               },
             ],
+            // Demonstrates focalPoint:false — no marker, crops seed from the centre.
+            focalPoint: false,
             label: { de: 'Kartenbild', en: 'Card Image' },
           }),
           cropField({
