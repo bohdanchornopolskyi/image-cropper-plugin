@@ -14,7 +14,7 @@ import { makeGenerateCropHandler } from '../src/handler.js'
 import { makeDeleteOrphanedCrops } from '../src/hook.js'
 import { cropImageField, cropImagePlugin, createCropImage } from '../src/index.js'
 import { buildCropRequests } from '../src/crop-requests.js'
-import { initCrop } from '../src/crop-geometry.js'
+import { focalInCrop, initCrop } from '../src/crop-geometry.js'
 import { getCropUrl, resolveMediaCrop } from '../src/utilities.js'
 
 /**
@@ -114,6 +114,15 @@ describe('cropImageField', () => {
     ]
     const field = cropImageField({ name: 'hero', crops }) as unknown as TestGroupField
     expect(field.admin?.components?.Field?.clientProps?.cropDefinitions).toEqual(crops)
+  })
+
+  test('focalPoint clientProp defaults to true and honours an explicit false', () => {
+    const props = (focalPoint?: boolean) =>
+      (cropImageField({ name: 'hero', crops: [], focalPoint }) as unknown as TestGroupField).admin
+        ?.components?.Field?.clientProps
+    expect(props()?.focalPoint).toBe(true)
+    expect(props(true)?.focalPoint).toBe(true)
+    expect(props(false)?.focalPoint).toBe(false)
   })
 
   test('returns three sub-fields total', () => {
@@ -382,10 +391,45 @@ describe('initCrop – focal point default positioning', () => {
     expect(withFocal.y).toBeCloseTo(100 - withFocal.height!, 5)
   })
 
-  test('an existing manual crop always wins over the focal point', () => {
+  test('an existing manual crop always wins when no focal point is given', () => {
+    const existing = { x: 10, y: 10, width: 50, height: 50 }
+    expect(initCrop(1000, 1000, undefined, existing)).toMatchObject(existing)
+  })
+
+  test('an existing manual crop wins when it still contains the focal point', () => {
+    const existing = { x: 10, y: 10, width: 50, height: 50 }
+    const crop = initCrop(1000, 1000, undefined, existing, undefined, { x: 30, y: 30 })
+    expect(crop).toMatchObject(existing)
+  })
+
+  test('an existing crop that excludes the focal point is re-seeded from the point', () => {
     const existing = { x: 10, y: 10, width: 50, height: 50 }
     const crop = initCrop(1000, 1000, undefined, existing, undefined, { x: 90, y: 90 })
-    expect(crop).toMatchObject(existing)
+    expect(crop).toMatchObject({ x: 10, y: 10, width: 90, height: 90 })
+    expect(focalInCrop({ x: 90, y: 90 }, crop)).toBe(true)
+  })
+
+  // The re-seed above is only a valid recovery if a focal-seeded crop is
+  // guaranteed to contain the point.
+  test('a focal-seeded crop always contains the focal point', () => {
+    const misses: string[] = []
+    for (const [w, h] of [
+      [1000, 1000],
+      [4018, 3014],
+      [800, 2000],
+    ]) {
+      for (const aspect of [undefined, 16 / 9, 9 / 16, 1, 4 / 3]) {
+        for (let x = 0; x <= 100; x += 5) {
+          for (let y = 0; y <= 100; y += 5) {
+            const c = initCrop(w, h, aspect, undefined, undefined, { x, y })
+            if (!focalInCrop({ x, y }, c)) {
+              misses.push(`${w}x${h} aspect=${String(aspect)} focal=${x},${y}`)
+            }
+          }
+        }
+      }
+    }
+    expect(misses).toEqual([])
   })
 })
 
@@ -938,6 +982,82 @@ describe('Payload integration', () => {
     const post = await payload.create({ collection: 'posts', data: {} })
     expect(post).toHaveProperty('cardImage')
     expect(typeof post.cardImage).toBe('object')
+  })
+
+  // The field saves the focal point by PATCHing focalX/focalY straight onto the
+  // media doc, relying on Payload to read those as an upload edit. That parsing
+  // lives in Payload (uploads/generateFileData.ts), not here — so pin it, or a
+  // Payload bump could silently stop persisting focal points.
+  const createMedia = async (name: string) => {
+    const file = await sharp({
+      create: { background: { b: 0, g: 0, r: 0 }, channels: 3, height: 300, width: 400 },
+    })
+      .png()
+      .toBuffer()
+
+    return payload.create({
+      collection: 'media',
+      data: {},
+      file: { name, data: file, mimetype: 'image/png', size: file.length },
+    })
+  }
+
+  test('a plain focalX/focalY update on a media doc is persisted by Payload', async () => {
+    const media = await createMedia('focal-test.png')
+
+    // Payload defaults an un-edited upload to dead centre.
+    expect(media.focalX).toBe(50)
+    expect(media.focalY).toBe(50)
+
+    const updated = await payload.update({
+      id: media.id,
+      collection: 'media',
+      data: { focalX: 62, focalY: 31 },
+    })
+
+    expect(updated.focalX).toBe(62)
+    expect(updated.focalY).toBe(31)
+
+    // And it survives a re-read, not just the update's return value.
+    const reread = await payload.findByID({ id: media.id, collection: 'media' })
+    expect(reread.focalX).toBe(62)
+    expect(reread.focalY).toBe(31)
+  })
+
+  // Fractional coords are stored verbatim: a fileless update never reaches
+  // Payload's resize path (which is what rounds), so CropModal's deliberately
+  // fractional focal point survives the round trip intact.
+  test('fractional focal coords are stored verbatim, not rounded', async () => {
+    const media = await createMedia('focal-round.png')
+
+    const updated = await payload.update({
+      id: media.id,
+      collection: 'media',
+      data: { focalX: 62.4, focalY: 31.8 },
+    })
+
+    expect(updated.focalX).toBe(62.4)
+    expect(updated.focalY).toBe(31.8)
+  })
+
+  // The counterpart to the above, and the reason the plugin ships getFocalPosition:
+  // writing focalX/focalY does NOT re-derive Payload's own cropped imageSizes.
+  // `shouldReupload` compares incoming data against itself, because updateByID
+  // does not pass originalDoc to generateFileData — so it is always false without
+  // a file in the request. Consumers must read the focal point at render time.
+  test('a focal update does not regenerate Payload imageSizes', async () => {
+    const media = await createMedia('focal-sizes.png')
+    const before = (media.sizes as Record<string, { filename?: null | string }>).square?.filename
+    expect(before).toBeTruthy()
+
+    const updated = await payload.update({
+      id: media.id,
+      collection: 'media',
+      data: { focalX: 90, focalY: 90 },
+    })
+
+    const after = (updated.sizes as Record<string, { filename?: null | string }>).square?.filename
+    expect(after).toBe(before)
   })
 })
 
