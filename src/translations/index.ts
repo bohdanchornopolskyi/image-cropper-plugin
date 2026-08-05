@@ -12,6 +12,7 @@ export type PluginTranslationKey =
   | 'cropSource'
   | 'dragAndDropFile'
   | 'editCrops'
+  | 'focalPoint'
   | 'generatingCrops'
   | 'or'
   | 'previewCropsAndSizes'

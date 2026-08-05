@@ -193,6 +193,12 @@ export type CropImageFieldConfig = {
     description?: string
   }
   crops: CropDefinition[]
+  /**
+   * Show a draggable focal-point marker inside the crop modal, saved to the media
+   * doc's `focalX`/`focalY`. Set to `false` for fields where the subject position
+   * is irrelevant (logos, flat graphics). Defaults to `true`.
+   */
+  focalPoint?: boolean
   label?: StaticLabel
   /** Override if your media collection uses a non-default slug. Defaults to 'media'. */
   mediaCollectionSlug?: string

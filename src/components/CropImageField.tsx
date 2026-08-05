@@ -15,6 +15,7 @@ type Props = {
   path: string
   cropDefinitions?: CropDefinition[]
   fieldLabel?: StaticLabel
+  focalPoint?: boolean
   mediaCollectionSlug?: string
   generateCropEndpoint?: string
   readOnly?: boolean
@@ -24,6 +25,7 @@ export function CropImageField({
   path,
   cropDefinitions = [],
   fieldLabel,
+  focalPoint = true,
   mediaCollectionSlug = 'media',
   generateCropEndpoint,
   readOnly,
@@ -148,6 +150,7 @@ export function CropImageField({
       {modalOpen && media?.url && (
         <CropModal
           cropDefinitions={cropDefinitions}
+          focalPoint={focalPoint}
           focalX={media.focalX}
           focalY={media.focalY}
           initialCropData={crops}

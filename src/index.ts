@@ -112,6 +112,7 @@ export function cropImageField(config: CropImageFieldConfig): Field {
           clientProps: {
             cropDefinitions: config.crops,
             fieldLabel: config.label ?? config.name,
+            focalPoint: config.focalPoint ?? true,
             generateCropEndpoint: `/api/${mediaSlug}/generate-crop`,
             mediaCollectionSlug: mediaSlug,
           },

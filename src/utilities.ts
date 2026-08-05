@@ -108,7 +108,7 @@ export function resolveMediaCrop<
   cropName: string,
   outputSize?: { height: number; width: number },
   sizeName?: string,
-): null | (T & { objectPosition?: string }) {
+): ({ objectPosition?: string } & T) | null {
   if (!value) {
     return null
   }
@@ -123,17 +123,21 @@ export function resolveMediaCrop<
 
   const key = sizeName ? `${cropName}.${sizeName}` : cropName
   const urls = value.generatedUrls
-  const isCropped = isRecord(urls) && typeof urls[key] === 'string'
+  const generated = isRecord(urls) ? urls[key] : undefined
+  const cropped = typeof generated === 'string' ? generated : undefined
 
-  const url = getCropUrl(value, cropName, sizeName)
+  const url = cropped ?? imageDoc.url
   if (!url) {
     return imageDoc
   }
+
+  // Only the fallback carries a focal point — a baked crop is already framed.
+  const objectPosition = cropped ? undefined : getFocalPosition(imageDoc)
 
   return {
     ...imageDoc,
     url,
     ...(outputSize ? { height: outputSize.height, width: outputSize.width } : {}),
-    ...(isCropped ? {} : { objectPosition: getFocalPosition(imageDoc) }),
+    ...(objectPosition ? { objectPosition } : {}),
   }
 }

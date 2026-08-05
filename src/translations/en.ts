@@ -9,6 +9,7 @@ export const en = {
   cropSource: 'Crop source',
   dragAndDropFile: 'or drag and drop a file',
   editCrops: 'Edit Crops',
+  focalPoint: 'Focal Point',
   generatingCrops: 'Generating crops…',
   or: 'or',
   previewCropsAndSizes: 'Preview crops & sizes',

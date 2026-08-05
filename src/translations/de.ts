@@ -9,6 +9,7 @@ export const de = {
   cropSource: 'Bild-Quelle',
   dragAndDropFile: 'oder Datei hier ablegen',
   editCrops: 'Ausschnitte bearbeiten',
+  focalPoint: 'Fokuspunkt',
   generatingCrops: 'Ausschnitte werden generiert…',
   or: 'oder',
   previewCropsAndSizes: 'Vorschau: Ausschnitte & Größen',
