@@ -221,6 +221,7 @@ Generated URLs are stored under compound keys: `card.lg`, `card.md`, `card.sm`.
 | `crops` | `CropDefinition[]` | — | **Required.** Array of crop presets |
 | `label` | `string \| Record<string, string>` | — | Display label in the admin panel. Accepts a locale map (see [Localized labels](#localized-labels)). |
 | `required` | `boolean` | `false` | Whether a selection is required |
+| `focalPoint` | `boolean` | `true` | Show the draggable focal-point marker in the crop modal, saved to the media doc's `focalX`/`focalY`. Set to `false` for fields where subject position is irrelevant (logos, flat graphics) — the marker is hidden and the media doc is never written to. |
 | `mediaCollectionSlug` | `string` | `'media'` | Override the media collection slug for this field |
 | `admin.condition` | `function` | — | Conditionally show this field |
 | `admin.description` | `string` | — | Help text shown below the field |
@@ -465,11 +466,25 @@ import { CropImageField } from 'payload-plugin-image-cropper/client'
    remains the default positioning signal, and the manual crop is an optional per-breakpoint
    override. When the media has no focal point set, this falls back to dead-center, matching
    prior versions of the plugin.
-3. On save, the field calls the `/api/{mediaCollectionSlug}/generate-crop` endpoint once per size (multi-size crops fan out automatically).
-4. The endpoint uses Sharp to extract, resize, and encode each crop region to the configured format.
-5. Generated files are written to `mediaDir` on disk (or handed to `onCropGenerated` for cloud upload).
-6. The public URLs are stored in `generatedUrls` under their key (or compound key for multi-size).
-7. When the source media document is deleted, all associated crop files are removed automatically.
+3. The focal point itself is set in the same modal, by dragging the marker on any crop tab (or
+   via the X/Y inputs in the footer), and is saved to the media doc's `focalX`/`focalY` — the
+   same fields Payload's own image editor writes, so the stored value stays in sync between
+   both UIs. The point can never sit outside the active crop: dragging it stops at the box edge,
+   and moving the box away from it drops it back to the box centre. Set `focalPoint: false` on
+   the field to hide it entirely.
+
+   > **Note:** writing `focalX`/`focalY` this way does *not* re-crop Payload's own
+   > `upload.imageSizes`. Payload only re-derives those when a file is present in the request
+   > (its admin image editor sends one); a plain field update is stored as-is. If you rely on
+   > focal-point-cropped `imageSizes`, re-save the media doc in Payload's own editor, or read
+   > the point at render time with
+   > [`getFocalPosition`](#combining-manual-crops-with-focal-point) instead — which is what
+   > `resolveMediaCrop` does for you.
+4. On save, the field calls the `/api/{mediaCollectionSlug}/generate-crop` endpoint once per size (multi-size crops fan out automatically).
+5. The endpoint uses Sharp to extract, resize, and encode each crop region to the configured format.
+6. Generated files are written to `mediaDir` on disk (or handed to `onCropGenerated` for cloud upload).
+7. The public URLs are stored in `generatedUrls` under their key (or compound key for multi-size).
+8. When the source media document is deleted, all associated crop files are removed automatically.
 
 > **Note:** for a preset an editor has never opened/saved, `getCropUrl` still falls back to the
 > plain original `image.url` (unchanged from prior versions) — the focal-point default described
