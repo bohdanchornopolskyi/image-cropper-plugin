@@ -3,6 +3,7 @@
 import { useDocumentDrawer, useField, useListDrawer } from '@payloadcms/ui'
 import { useCallback, useEffect, useState } from 'react'
 
+import type { FocalPoint } from '../crop-geometry.js'
 import type { CropData, CropDefinition, GeneratedUrls } from '../types.js'
 
 import { buildCropRequests } from '../crop-requests.js'
@@ -12,6 +13,8 @@ export type MediaDoc = {
   alt?: null | string
   filename?: null | string
   filesize?: null | number
+  focalX?: null | number
+  focalY?: null | number
   height?: null | number
   id: number | string
   mimeType?: null | string
@@ -61,9 +64,12 @@ export function useCropImageField(args: {
     imageDoc?.id ?? (typeof imageRaw === 'number' || typeof imageRaw === 'string' ? imageRaw : null)
 
   const [fetchedDoc, setFetchedDoc] = useState<MediaDoc | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
 
   // imageDoc from Payload's form store may be incomplete (only {id}, no url/filename)
   // when the form loads from the DB — always fetch the full doc when imageId changes.
+  // Also re-read on modal open: focalX/focalY may have changed since page load (e.g.
+  // via Payload's own image editor in another tab) and nothing else would refetch.
   useEffect(() => {
     if (!imageId) {
       setFetchedDoc(null)
@@ -79,7 +85,7 @@ export function useCropImageField(args: {
       })
       .catch(() => null)
     return () => controller.abort()
-  }, [imageId, mediaCollectionSlug])
+  }, [imageId, mediaCollectionSlug, modalOpen])
 
   // fetchedDoc takes priority: it always has all fields; imageDoc may have only {id}.
   const media: MediaDoc | null = imageId ? (fetchedDoc ?? imageDoc) : null
@@ -93,7 +99,6 @@ export function useCropImageField(args: {
   const [CreateMediaDrawer, , { closeDrawer: closeCreateDrawer, openDrawer: openCreateDrawer }] =
     useDocumentDrawer({ collectionSlug: mediaCollectionSlug })
 
-  const [modalOpen, setModalOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [generating, setGenerating] = useState(false)
 
@@ -104,6 +109,8 @@ export function useCropImageField(args: {
         alt: typeof doc.alt === 'string' ? doc.alt : null,
         filename: typeof doc.filename === 'string' ? doc.filename : null,
         filesize: typeof doc.filesize === 'number' ? doc.filesize : null,
+        focalX: typeof doc.focalX === 'number' ? doc.focalX : null,
+        focalY: typeof doc.focalY === 'number' ? doc.focalY : null,
         height: typeof doc.height === 'number' ? doc.height : null,
         mimeType: typeof doc.mimeType === 'string' ? doc.mimeType : null,
         url: typeof doc.url === 'string' ? doc.url : null,
@@ -139,7 +146,7 @@ export function useCropImageField(args: {
     [selectDoc, closeCreateDrawer],
   )
 
-  const handleSave = async (finalCrops: CropData) => {
+  const handleSave = async (finalCrops: CropData, focal?: FocalPoint) => {
     if (!media?.id) {
       return
     }
@@ -147,6 +154,30 @@ export function useCropImageField(args: {
     setCropData(finalCrops)
     setModalOpen(false)
     setGenerating(true)
+
+    // The focal point lives on the media doc, in the same focalX/focalY fields
+    // Payload's own image editor writes to — one source of truth, so the stored
+    // value stays in sync between both UIs. Note this does not re-crop Payload's
+    // upload.imageSizes: it only re-derives those when the request carries a file
+    // (see uploads/generateFileData.ts), so consumers should read the point at
+    // render time via getFocalPosition. Undefined when the field has
+    // focalPoint:false — never touch the media doc in that case.
+    // Kicked off but not awaited here: crop generation only reads the source file,
+    // so it must not queue behind this write. Joined below.
+    const focalSaved =
+      focal && (focal.x !== media.focalX || focal.y !== media.focalY)
+        ? fetch(`${apiRoute}/${mediaCollectionSlug}/${media.id}`, {
+            body: JSON.stringify({ focalX: focal.x, focalY: focal.y }),
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            method: 'PATCH',
+          })
+            .then((res) => res.ok)
+            .catch((e: unknown) => {
+              console.error('[CropImageField] Failed to save focal point:', e)
+              return false
+            })
+        : null
 
     const requests = buildCropRequests(cropDefinitions, finalCrops, media.id)
     const results = await Promise.all(
@@ -170,6 +201,10 @@ export function useCropImageField(args: {
           }),
       ),
     )
+
+    if (focal && (await focalSaved)) {
+      setFetchedDoc((prev) => (prev ? { ...prev, focalX: focal.x, focalY: focal.y } : prev))
+    }
 
     const newUrls: GeneratedUrls = { ...(generatedUrls ?? {}) }
     for (const result of results) {
