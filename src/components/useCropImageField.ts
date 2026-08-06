@@ -42,7 +42,11 @@ export function useCropImageField(args: {
 }) {
   const { apiRoute, cropDefinitions, endpoint, mediaCollectionSlug, path } = args
 
-  const { setValue: setImageValue, value: imageRaw } = useField<MediaDoc | null | number>({
+  const {
+    filterOptions,
+    setValue: setImageValue,
+    value: imageRaw,
+  } = useField<MediaDoc | null | number>({
     path: `${path}.image`,
   })
   const { setValue: setCropData, value: cropData } = useField<CropData | null>({
@@ -89,6 +93,7 @@ export function useCropImageField(args: {
   const [ListDrawer, , { closeDrawer: closeMediaDrawer, openDrawer: openMediaDrawer }] =
     useListDrawer({
       collectionSlugs: [mediaCollectionSlug],
+      filterOptions,
     })
 
   const [CreateMediaDrawer, , { closeDrawer: closeCreateDrawer, openDrawer: openCreateDrawer }] =

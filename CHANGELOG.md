@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.4] - 2026-08-03
+
+### Added
+
+- **`filterOptions`** — restrict which media documents can be selected in the picker drawer,
+  matching the semantics of the `filterOptions` option on Payload's native `upload` field.
+  Accepts a static `Where` object or a function of `{ data, siblingData, user, req }`. The
+  resolved filter is applied to the picker drawer, and the inner `image` upload field enforces
+  it server-side on save.
+
+  ```ts
+  cropImageField({
+    name: 'fallbackImage',
+    filterOptions: { mimeType: { contains: 'image' } },
+    crops: [/* ... */],
+  })
+  ```
+
+  Note: the "create new" drawer does not filter; server-side validation is the backstop.
+
+### Changed
+
+- **`admin.description` now accepts a locale map** — the field description type was widened from
+  `string` to Payload's `StaticDescription` (`string | Record<string, string>`), and the
+  description is now actually rendered in the admin panel (via Payload's `FieldDescription`
+  component), which the custom field component previously dropped.
+
+  ```ts
+  cropImageField({
+    name: 'heroImage',
+    admin: { description: { en: 'MP4 and WebM are supported.', de: 'MP4 und WebM werden unterstützt.' } },
+    crops: [/* ... */],
+  })
+  ```
+
+  Plain strings continue to work with no changes required. Description functions/components are
+  not supported.
+
+- **`StaticDescription`** type re-exported from the main entry point.
+
+Both changes are additive and backward-compatible.
+
+---
+
 ## [0.1.3] - 2026-06-23
 
 ### Fixed
