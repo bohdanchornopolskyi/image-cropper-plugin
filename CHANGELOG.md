@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.5] - 2026-08-06
+
+### Added
+
+- **Focal point support** — the crop modal now shows a draggable focal-point marker (plus X/Y
+  number inputs for keyboard use), saved to the media document's `focalX`/`focalY`. These are
+  the same fields Payload's own image editor writes, so the stored point is shared between both
+  UIs. The marker can never leave the active crop: dragging clamps it to the box edge, and
+  moving or resizing the box away from it drops it back to the box centre.
+- **`focalPoint` field option** (`boolean`, defaults to `true`) — set to `false` for fields
+  where subject position is irrelevant (logos, flat graphics). The marker is hidden and the
+  media document is never written to.
+- **Focal-point-aware crop seeding** — for a preset that hasn't been cropped yet, the modal's
+  initial selection is centred on the media's focal point instead of the plain geometric
+  centre, so the focal point stays the default positioning signal and a manual crop is an
+  optional per-breakpoint override. Falls back to dead-centre when no point is set, matching
+  prior versions. A stored crop that no longer contains the focal point is re-derived from the
+  point rather than honoured.
+- **`getFocalPosition(media)`** — returns the media's focal point as a CSS `object-position`
+  string (e.g. `'62% 30%'`), or `undefined` when none is set.
+- **`resolveMediaCrop` now returns `objectPosition`** when it falls back to the uncropped
+  original, so `object-fit: cover` frames the same subject a manual crop would have targeted.
+  Omitted once a crop is saved — the baked file is already framed.
+
+### Fixed
+
+- **`getFocalPosition` was missing from the `/utilities` export** — the README documented
+  importing it from `payload-plugin-image-cropper/utilities`, but it was never re-exported.
+- **Focal-point save no longer blocks crop generation** — the `focalX`/`focalY` write is
+  started in parallel and joined afterwards. The generate-crop endpoint only reads the source
+  file, so it never needed to queue behind that write.
+
+### Notes
+
+- Writing `focalX`/`focalY` does **not** re-crop Payload's own `upload.imageSizes`. Payload
+  re-derives those only when a file is present in the request (its admin image editor sends
+  one); a plain field update is stored as-is. Read the point at render time with
+  `getFocalPosition` — or let `resolveMediaCrop` do it — if you need focal-point framing.
+
+---
+
 ## [0.1.4] - 2026-08-03
 
 ### Added
