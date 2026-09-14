@@ -211,6 +211,7 @@ Generated URLs are stored under compound keys: `card.lg`, `card.md`, `card.sm`.
 | `config.forcePathStyle` | `boolean` | Force path-style URLs. |
 | `generateUrl` | `(args: { filename, prefix? }) => string` | **Required.** Build the public URL for a crop file. Same logic as `generateFileURL` in `s3Storage`. |
 | `acl` | `string` | Object ACL, e.g. `'public-read'`. |
+| `cacheControl` | `string` | `Cache-Control` header for crop objects. Defaults to `'public, max-age=31536000, immutable'` — safe because crop filenames encode the crop region and output size, so a re-crop writes a new key. |
 | `prefix` | `string` | Key prefix inside the bucket. Mirrors `prefix` in `s3Storage` collection config. |
 
 ### `cropImageField` options

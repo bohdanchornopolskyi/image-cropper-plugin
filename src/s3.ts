@@ -2,6 +2,8 @@ import type { S3Client } from '@aws-sdk/client-s3'
 
 import type { CropStorage, OnCropGeneratedContext, S3CropConfig } from './types.js'
 
+const DEFAULT_CACHE_CONTROL = 'public, max-age=31536000, immutable'
+
 let cachedClient: S3Client | undefined
 
 async function getClient(config: S3CropConfig): Promise<S3Client> {
@@ -33,6 +35,7 @@ export function makeS3CropStorage(config: S3CropConfig): CropStorage {
           ACL: config.acl,
           Body: ctx.buffer,
           Bucket: config.bucket,
+          CacheControl: config.cacheControl ?? DEFAULT_CACHE_CONTROL,
           ContentType: contentType,
           Key: key,
         }),

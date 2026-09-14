@@ -120,6 +120,13 @@ export type S3CropConfig = {
     | 'public-read-write'
   /** S3 bucket name. */
   bucket: string
+  /**
+   * `Cache-Control` header written on every crop file. Crop filenames encode the crop
+   * region and output size, so a re-crop is always a new key and can be cached forever.
+   *
+   * @default 'public, max-age=31536000, immutable'
+   */
+  cacheControl?: string
   /** S3 client configuration — same object you pass to `@payloadcms/storage-s3`. */
   config: {
     credentials?: {
