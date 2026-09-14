@@ -6,23 +6,29 @@
   "type": "module",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
       "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
     "./client": {
-      "import": "./dist/exports/client.js",
       "types": "./dist/exports/client.d.ts",
+      "import": "./dist/exports/client.js",
       "default": "./dist/exports/client.js"
     },
     "./utilities": {
-      "import": "./dist/exports/utilities.js",
       "types": "./dist/exports/utilities.d.ts",
+      "import": "./dist/exports/utilities.js",
       "default": "./dist/exports/utilities.js"
     }
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "client": ["./dist/exports/client.d.ts"],
+      "utilities": ["./dist/exports/utilities.d.ts"]
+    }
+  },
   "files": [
     "dist"
   ],
