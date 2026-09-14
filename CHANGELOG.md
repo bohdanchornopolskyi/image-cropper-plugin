@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.6] - 2026-09-14
+
+### Added
+
+- **`cacheControl` option on `S3CropConfig`** — sets the `Cache-Control` header written on
+  every crop upload. Defaults to `public, max-age=31536000, immutable`. Crop filenames encode
+  the crop region and the output size, so changing a crop always writes a new key; the old URL
+  is never reused for different bytes, which makes a one-year immutable cache safe. Pass your
+  own string to override.
+
+### Fixed
+
+- **Subpath types under `moduleResolution: node`** — `payload-plugin-image-cropper/client` and
+  `/utilities` resolved to `any` for consumers on the legacy resolver. Added `typesVersions`
+  and moved the `types` condition to the front of each export map, where TypeScript looks for
+  it.
+
 ## [0.1.5] - 2026-08-06
 
 ### Added
