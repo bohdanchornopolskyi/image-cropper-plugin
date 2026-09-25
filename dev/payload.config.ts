@@ -218,6 +218,8 @@ const buildConfigWithMemoryDB = async () => {
     secret: process.env.PAYLOAD_SECRET || 'test-secret_key',
     sharp,
     typescript: {
+      // The spawned generate:types process imports this config, starts its own in-memory DB and never exits.
+      autoGenerate: process.env.NODE_ENV !== 'test',
       outputFile: path.resolve(dirname, 'payload-types.ts'),
     },
   })
