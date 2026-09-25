@@ -1,6 +1,6 @@
 import type { S3Client } from '@aws-sdk/client-s3'
 
-import type { CropStorage, OnCropGeneratedContext, S3CropConfig } from './types.js'
+import type { CropStorage, S3CropConfig } from './types.js'
 
 const DEFAULT_CACHE_CONTROL = 'public, max-age=31536000, immutable'
 
@@ -22,7 +22,7 @@ export function makeS3CropStorage(config: S3CropConfig): CropStorage {
     ))
 
   return {
-    async upload(ctx: OnCropGeneratedContext) {
+    async upload(ctx) {
       const { PutObjectCommand } = await import('@aws-sdk/client-s3')
       const s3 = await getClient()
       const key = resolveKey(ctx.filename, config.prefix)

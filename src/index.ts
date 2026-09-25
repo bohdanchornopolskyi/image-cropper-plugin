@@ -7,6 +7,7 @@ import type { CropImageFieldConfig, CropImagePluginConfig } from './types.js'
 import { makeGenerateCropHandler } from './handler.js'
 import { makeDeleteOrphanedCrops } from './hook.js'
 import { makeS3CropStorage } from './s3.js'
+import { makeCallbackCropStorage, makeLocalCropStorage } from './storage.js'
 import { de as pluginTranslationsDe, en as pluginTranslationsEn } from './translations/index.js'
 
 export type {
@@ -25,8 +26,7 @@ export type {
 
 export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugin {
   const mediaSlug = pluginConfig.mediaCollectionSlug ?? 'media'
-  const mediaDir = pluginConfig.mediaDir ?? path.join(process.cwd(), 'public/media')
-  const storage = pluginConfig.s3 ? makeS3CropStorage(pluginConfig.s3) : undefined
+  const s3Storage = pluginConfig.s3 ? makeS3CropStorage(pluginConfig.s3) : undefined
 
   return (incomingConfig: Config): Config => {
     const collections = (incomingConfig.collections ?? []).map((collection) => {
@@ -34,27 +34,29 @@ export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugi
         return collection
       }
 
+      const staticDir =
+        typeof collection.upload === 'object' ? collection.upload.staticDir : undefined
+      const mediaDir = path.resolve(pluginConfig.mediaDir ?? staticDir ?? collection.slug)
+      const local = makeLocalCropStorage(mediaDir)
+      const storage =
+        s3Storage ??
+        (pluginConfig.onCropGenerated
+          ? makeCallbackCropStorage(pluginConfig.onCropGenerated, local)
+          : local)
+
       return {
         ...collection,
         endpoints: [
           ...(Array.isArray(collection.endpoints) ? collection.endpoints : []),
           {
-            handler: makeGenerateCropHandler(
-              mediaDir,
-              mediaSlug,
-              pluginConfig.onCropGenerated,
-              storage,
-            ),
+            handler: makeGenerateCropHandler(mediaDir, mediaSlug, storage),
             method: 'post' as const,
             path: '/generate-crop',
           },
         ],
         hooks: {
           ...collection.hooks,
-          afterDelete: [
-            ...(collection.hooks?.afterDelete ?? []),
-            makeDeleteOrphanedCrops(mediaDir, storage),
-          ],
+          afterDelete: [...(collection.hooks?.afterDelete ?? []), makeDeleteOrphanedCrops(storage)],
         },
       }
     })

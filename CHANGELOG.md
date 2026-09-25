@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.8] - 2026-09-25
+
+### Changed
+
+- **`mediaDir` defaults to the collection's `staticDir`**: the plugin reads and writes crops in
+  the media collection's `upload.staticDir`, resolved against the working directory the same way
+  Payload resolves it. You no longer have to repeat the path in `mediaDir`. An explicit
+  `mediaDir` still wins. ([#13](https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues/13))
+- **Content-hashed crop filenames**: a crop's filename is now the source name plus a hash of
+  the source file, crop coordinates, output size, format and quality, for example
+  `photo-crop-3f2a9c01d4e5b6a7.webp`. Existing crops keep their URLs until they are re-cropped.
+  ([#14](https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues/14))
+
+### Fixed
+
+- **Crops deleted across documents**: generating a crop no longer deletes other crop files. Two
+  documents that crop the same media keep their own files, and a `hero` crop no longer removes
+  `hero-mobile` files. A crop replaced by a re-crop stays on disk or in the bucket until its
+  source media is deleted. ([#14](https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues/14))
+- **Stale crops**: changing only the quality or format, or moving a crop by less than 1%, now
+  writes a new file instead of returning the old one. ([#14](https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues/14))
+
+### Internal
+
+- Local disk, S3 and `onCropGenerated` share one storage adapter interface. When
+  `onCropGenerated` returns no URL, the fallback write to disk now behaves exactly like the
+  local adapter. ([#12](https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues/12))
+
 ## [0.1.7] - 2026-09-25
 
 ### Fixed

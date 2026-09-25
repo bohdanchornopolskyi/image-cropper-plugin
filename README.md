@@ -42,7 +42,6 @@ npm install sharp
 
 ```ts
 // payload.config.ts
-import path from 'path'
 import { buildConfig } from 'payload'
 import { cropImagePlugin } from 'payload-plugin-image-cropper'
 
@@ -58,14 +57,13 @@ export default buildConfig({
   ],
   plugins: [
     cropImagePlugin({
-      mediaCollectionSlug: 'media',                        // default: 'media'
-      mediaDir: path.join(process.cwd(), 'public/media'),  // must match staticDir
+      mediaCollectionSlug: 'media', // default: 'media'
     }),
   ],
 })
 ```
 
-> **Important:** `mediaDir` must be an **absolute path** pointing to the same directory as the media collection's `staticDir`. Always use `process.cwd()` rather than `__dirname` / `import.meta.url` — Payload resolves `staticDir` relative to the working directory, not the config file location.
+The plugin reads and writes crops in the media collection's `staticDir`, resolved against the working directory the same way Payload resolves it. Set `mediaDir` only to point the plugin at a different directory.
 
 #### S3 and other cloud storage
 
@@ -100,7 +98,6 @@ export default buildConfig({
     }),
     cropImagePlugin({
       mediaCollectionSlug: 'media',
-      mediaDir: path.join(process.cwd(), 'public/media'),
       s3: {
         acl: 'public-read',
         bucket: process.env.S3_BUCKET,
@@ -125,7 +122,7 @@ export default buildConfig({
 
 The `s3` config mirrors `@payloadcms/storage-s3` so the values are identical — copy the `bucket`, `config`, `acl`, and `prefix` across, and write the same `generateUrl` arrow function you use for `generateFileURL`. The plugin handles `PutObject` on crop save and `ListObjects` + `DeleteObject` on source media deletion.
 
-> `mediaDir` is still needed to read the source image. If you use `disableLocalStorage: true`, the source file is fetched from its URL automatically and `mediaDir` is unused.
+> The source image is read from `staticDir` when it is on disk. With `disableLocalStorage: true`, it is fetched from its URL instead.
 
 ### 2. Add `cropImageField` to a collection
 
@@ -195,7 +192,7 @@ Generated URLs are stored under compound keys: `card.lg`, `card.md`, `card.sm`.
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `mediaCollectionSlug` | `string` | `'media'` | Slug of the collection that stores media uploads |
-| `mediaDir` | `string` | `process.cwd() + '/public/media'` | Absolute path to the media storage directory |
+| `mediaDir` | `string` | the media collection's `staticDir` | Directory where source images are read from and crops are written to. Relative paths resolve against `process.cwd()`. |
 | `s3` | `S3CropConfig` | — | S3 / S3-compatible storage. When set, crops are uploaded to the bucket and deleted automatically — no custom code required. |
 | `onCropGenerated` | `function` | — | _(Advanced)_ Low-level hook called after Sharp processes each crop. Return `{ url }` to store a custom URL and skip the local disk write, or return void to write to disk. |
 
@@ -211,7 +208,7 @@ Generated URLs are stored under compound keys: `card.lg`, `card.md`, `card.sm`.
 | `config.forcePathStyle` | `boolean` | Force path-style URLs. |
 | `generateUrl` | `(args: { filename, prefix? }) => string` | **Required.** Build the public URL for a crop file. Same logic as `generateFileURL` in `s3Storage`. |
 | `acl` | `string` | Object ACL, e.g. `'public-read'`. |
-| `cacheControl` | `string` | `Cache-Control` header for crop objects. Defaults to `'public, max-age=31536000, immutable'` — safe because crop filenames encode the crop region and output size, so a re-crop writes a new key. |
+| `cacheControl` | `string` | `Cache-Control` header for crop objects. Defaults to `'public, max-age=31536000, immutable'` — safe because each crop filename is a hash of the source file and every crop setting, so a re-crop writes a new key. |
 | `prefix` | `string` | Key prefix inside the bucket. Mirrors `prefix` in `s3Storage` collection config. |
 
 ### `cropImageField` options
@@ -325,11 +322,11 @@ const label = resolveLabel({ en: 'Hero Image', de: 'Heldenbild' }, 'de') // → 
 
 // URL for a named crop
 const url = getCropUrl(post.heroImage, 'desktop')
-// → '/media/my-photo-crop-desktop-5-10-90x80-1920x1080.webp'
+// → '/media/my-photo-crop-3f2a9c01d4e5b6a7.webp'
 
 // Full media object with the crop URL injected as `url`
 const media = resolveMediaCrop(post.heroImage, 'mobile')
-// → { id: '...', filename: '...', url: '/media/...mobile....webp', ... }
+// → { id: '...', filename: '...', url: '/media/my-photo-crop-....webp', ... }
 ```
 
 Both helpers are safe to call with `null` or `undefined` — they return `''` / `null` respectively. When no generated crop exists yet, `getCropUrl` falls back to the original `image.url` so the field degrades gracefully before an editor has cropped the image.
@@ -426,8 +423,8 @@ function cardImageLoader({ width }) {
       mobile:  { x: 20, y: 0, width: 60, height: 100 },
     },
     generatedUrls: {
-      desktop: '/media/photo-crop-desktop-5-10-90x80-1920x1080.webp',
-      mobile:  '/media/photo-crop-mobile-20-0-60x100-828x1035.webp',
+      desktop: '/media/photo-crop-3f2a9c01d4e5b6a7.webp',
+      mobile:  '/media/photo-crop-81d04be29a6c7f35.webp',
     },
   }
 }
@@ -442,9 +439,9 @@ function cardImageLoader({ width }) {
       card: { x: 0, y: 12, width: 100, height: 75 },
     },
     generatedUrls: {
-      'card.lg': '/media/photo-crop-card-0-12-100x75-1200x675.webp',
-      'card.md': '/media/photo-crop-card-0-12-100x75-768x432.webp',
-      'card.sm': '/media/photo-crop-card-0-12-100x75-390x219.webp',
+      'card.lg': '/media/photo-crop-0c9e1f7a2b3d4e56.webp',
+      'card.md': '/media/photo-crop-7a45c2e9d18b0f63.webp',
+      'card.sm': '/media/photo-crop-e2b8f14c6d09a735.webp',
     },
   }
 }
@@ -483,7 +480,7 @@ import { CropImageField } from 'payload-plugin-image-cropper/client'
    > `resolveMediaCrop` does for you.
 4. On save, the field calls the `/api/{mediaCollectionSlug}/generate-crop` endpoint once per size (multi-size crops fan out automatically).
 5. The endpoint uses Sharp to extract, resize, and encode each crop region to the configured format.
-6. Generated files are written to `mediaDir` on disk (or handed to `onCropGenerated` for cloud upload).
+6. Generated files are written to the media collection's `staticDir` on disk (or handed to `onCropGenerated` for cloud upload).
 7. The public URLs are stored in `generatedUrls` under their key (or compound key for multi-size).
 8. When the source media document is deleted, all associated crop files are removed automatically.
 

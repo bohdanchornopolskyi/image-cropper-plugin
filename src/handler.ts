@@ -1,12 +1,14 @@
 import type { PayloadHandler } from 'payload'
 
+import { createHash } from 'crypto'
 import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
 
-import type { CropCoords, CropStorage, ImageFormat, OnCropGeneratedContext } from './types.js'
+import type { CropCoords, CropStorage, ImageFormat } from './types.js'
 
 import { isRecord } from './isRecord.js'
+import { makeLocalCropStorage } from './storage.js'
 
 type GenerateCropBody = {
   cropData: CropCoords
@@ -62,16 +64,16 @@ function applyFormat(pipeline: sharp.Sharp, format: ImageFormat, quality: number
 }
 
 /**
- * Resolves the source image as a Sharp-compatible input.
+ * Reads the source image bytes.
  * Tries the local filesystem first; falls back to fetching from the media URL
  * when the file is not present on disk (e.g. cloud storage with disableLocalStorage: true).
  */
 async function resolveSourceInput(
   localPath: string,
   mediaUrl: string | undefined,
-): Promise<Buffer | null | string> {
+): Promise<Buffer | null> {
   if (fs.existsSync(localPath)) {
-    return localPath
+    return fs.promises.readFile(localPath)
   }
   if (typeof mediaUrl === 'string' && /^https?:\/\//.test(mediaUrl)) {
     const res = await fetch(mediaUrl)
@@ -86,13 +88,8 @@ async function resolveSourceInput(
 export function makeGenerateCropHandler(
   mediaDir: string,
   mediaCollectionSlug: string,
-  onCropGenerated?: (
-    ctx: OnCropGeneratedContext,
-  ) => { url: string } | Promise<{ url: string } | void> | void,
-  storage?: CropStorage,
+  storage: CropStorage = makeLocalCropStorage(mediaDir),
 ): PayloadHandler {
-  const mediaDirBase = path.basename(mediaDir)
-
   return async (req) => {
     if (!req.user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
@@ -169,38 +166,12 @@ export function makeGenerateCropHandler(
     )
 
     const base = path.basename(safeFilename, path.extname(safeFilename))
-    const tag = `${Math.round(cropData.x)}-${Math.round(cropData.y)}-${Math.round(cropData.width)}x${Math.round(cropData.height)}`
-    const ext = format === 'jpeg' ? 'jpg' : format
-    const outputFilename = `${base}-crop-${cropName}-${tag}-${outputWidth}x${outputHeight}.${ext}`
-    const outputFilePath = path.join(mediaDir, outputFilename)
-    const slotPrefix = `${base}-crop-${cropName}-`
-
-    // storage adapter takes precedence over onCropGenerated
-    const useCloudStorage = storage ?? null
-    const useLegacyCallback = !useCloudStorage && onCropGenerated ? onCropGenerated : null
-
-    // Only scan local disk when writing to local filesystem
-    if (!useCloudStorage && !useLegacyCallback) {
-      let alreadyExists = false
-      try {
-        const dir = await fs.promises.opendir(mediaDir)
-        for await (const dirent of dir) {
-          if (dirent.name === outputFilename) {
-            alreadyExists = true
-          } else if (dirent.name.startsWith(slotPrefix)) {
-            await fs.promises.unlink(path.join(mediaDir, dirent.name)).catch((e: unknown) => {
-              console.error(`[generateCrop] Failed to delete old crop file ${dirent.name}:`, e)
-            })
-          }
-        }
-      } catch (e) {
-        console.error('[generateCrop] Failed to read media directory:', e)
-      }
-
-      if (alreadyExists) {
-        return Response.json({ url: `/${mediaDirBase}/${outputFilename}` })
-      }
-    }
+    const hash = createHash('sha256')
+      .update(sourceInput)
+      .update(JSON.stringify([cropData, outputWidth, outputHeight, format, quality]))
+      .digest('hex')
+      .slice(0, 16)
+    const outputFilename = `${base}-crop-${hash}.${format === 'jpeg' ? 'jpg' : format}`
 
     try {
       const pipeline = sharp(sourceInput)
@@ -209,31 +180,14 @@ export function makeGenerateCropHandler(
         .resize(outputWidth, outputHeight, { fit: 'fill' })
 
       const buffer = await applyFormat(pipeline, format, quality).toBuffer()
-      const ctx: OnCropGeneratedContext = {
+      const result = await storage.upload({
         buffer,
         cropName,
         filename: outputFilename,
         format,
         mediaId,
-      }
-
-      if (useCloudStorage) {
-        const result = await useCloudStorage.upload(ctx)
-        return Response.json({ url: result.url })
-      }
-
-      if (useLegacyCallback) {
-        const result = await useLegacyCallback(ctx)
-        if (result?.url) {
-          return Response.json({ url: result.url })
-        }
-        // Callback returned void — fall through to local disk write
-        await fs.promises.writeFile(outputFilePath, buffer)
-        return Response.json({ url: `/${mediaDirBase}/${outputFilename}` })
-      }
-
-      await fs.promises.writeFile(outputFilePath, buffer)
-      return Response.json({ url: `/${mediaDirBase}/${outputFilename}` })
+      })
+      return Response.json({ url: result.url })
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unknown error'
       console.error('[generateCrop] Sharp processing failed:', e)
