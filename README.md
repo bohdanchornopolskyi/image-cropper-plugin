@@ -376,6 +376,25 @@ const smMedia = resolveMediaCrop(post.cardImage, 'card', { width: 390,  height: 
 // → { id: '...', filename: '...', url: '/media/...card.lg....webp', width: 1200, height: 675, ... }
 ```
 
+#### `srcset` for a responsive `<img>`
+
+`getCropSrcSet` builds the `srcset` string from the crop definition you passed to `cropImageField`, which is where the pixel widths live. Keep the definition in a shared constant so the config and the frontend use the same one:
+
+```tsx
+import { getCropSrcSet, getCropUrl } from 'payload-plugin-image-cropper/utilities'
+import { cardCrop } from './crops' // the same object used in cropImageField({ crops: [cardCrop] })
+
+<img
+  src={getCropUrl(post.cardImage, 'card', 'lg')}
+  srcSet={getCropSrcSet(post.cardImage, cardCrop)}
+  // → '/media/photo-crop-0c9e….webp 1200w, /media/photo-crop-7a45….webp 768w, /media/photo-crop-e2b8….webp 390w'
+  sizes="(max-width: 768px) 100vw, 1200px"
+  alt="Card"
+/>
+```
+
+Sizes are listed largest first, and sizes without a generated file are skipped, so the result is `''` until the crop exists.
+
 #### Standard HTML — `<picture>` srcset
 
 ```html

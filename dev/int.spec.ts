@@ -18,7 +18,7 @@ import { generateCrops } from '../src/generate.js'
 import { makeDeleteOrphanedCrops } from '../src/hook.js'
 import { createCropImage, cropImageField, cropImagePlugin } from '../src/index.js'
 import { makeCallbackCropStorage, makeLocalCropStorage } from '../src/storage.js'
-import { getCropUrl, resolveMediaCrop } from '../src/utilities.js'
+import { getCropSrcSet, getCropUrl, resolveMediaCrop } from '../src/utilities.js'
 
 /**
  * Minimal shape of the group field returned by cropImageField – typed locally
@@ -1243,6 +1243,45 @@ describe('getCropUrl – multi-size compound keys', () => {
 
   test('returns empty string when both compound key and image are absent', () => {
     expect(getCropUrl({}, 'card', 'lg')).toBe('')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Unit tests – getCropSrcSet
+// ---------------------------------------------------------------------------
+
+describe('getCropSrcSet', () => {
+  const card = {
+    name: 'card',
+    sizes: [
+      { name: 'sm', height: 219, label: 'Small', width: 390 },
+      { name: 'lg', height: 675, label: 'Large', width: 1200 },
+      { name: 'md', height: 432, label: 'Medium', width: 768 },
+    ],
+  }
+
+  test('lists every generated size, largest first', () => {
+    const value = {
+      generatedUrls: { 'card.lg': '/lg.webp', 'card.md': '/md.webp', 'card.sm': '/sm.webp' },
+    }
+    expect(getCropSrcSet(value, card)).toBe('/lg.webp 1200w, /md.webp 768w, /sm.webp 390w')
+  })
+
+  test('skips sizes without a generated URL', () => {
+    const value = { generatedUrls: { 'card.sm': '/sm.webp' } }
+    expect(getCropSrcSet(value, card)).toBe('/sm.webp 390w')
+  })
+
+  test('returns an empty string for an empty value', () => {
+    expect(getCropSrcSet(null, card)).toBe('')
+    expect(getCropSrcSet(undefined, card)).toBe('')
+    expect(getCropSrcSet({}, card)).toBe('')
+  })
+
+  test('handles single-size crops', () => {
+    const hero = { name: 'hero', height: 1080, width: 1920 }
+    expect(getCropSrcSet({ generatedUrls: {} }, hero)).toBe('')
+    expect(getCropSrcSet({ generatedUrls: { hero: '/hero.webp' } }, hero)).toBe('/hero.webp 1920w')
   })
 })
 
