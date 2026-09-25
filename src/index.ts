@@ -4,7 +4,7 @@ import path from 'path'
 
 import type { CropImageFieldConfig, CropImagePluginConfig } from './types.js'
 
-import { makeGenerateCropHandler } from './handler.js'
+import { makeGenerateCropsHook, validateCropData, withCropRuntime } from './field-hooks.js'
 import { makeDeleteOrphanedCrops } from './hook.js'
 import { makeS3CropStorage } from './s3.js'
 import { makeCallbackCropStorage, makeLocalCropStorage } from './storage.js'
@@ -29,6 +29,7 @@ export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugi
   const s3Storage = pluginConfig.s3 ? makeS3CropStorage(pluginConfig.s3) : undefined
 
   return (incomingConfig: Config): Config => {
+    let runtime: Parameters<typeof withCropRuntime>[2] | undefined
     const collections = (incomingConfig.collections ?? []).map((collection) => {
       if (collection.slug !== mediaSlug) {
         return collection
@@ -44,16 +45,10 @@ export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugi
           ? makeCallbackCropStorage(pluginConfig.onCropGenerated, local)
           : local)
 
+      runtime = { mediaDir, storage }
+
       return {
         ...collection,
-        endpoints: [
-          ...(Array.isArray(collection.endpoints) ? collection.endpoints : []),
-          {
-            handler: makeGenerateCropHandler(mediaDir, mediaSlug, storage),
-            method: 'post' as const,
-            path: '/generate-crop',
-          },
-        ],
         hooks: {
           ...collection.hooks,
           afterDelete: [...(collection.hooks?.afterDelete ?? []), makeDeleteOrphanedCrops(storage)],
@@ -71,11 +66,12 @@ export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugi
       en: { ...existingTranslations['en'], 'plugin-image-cropper': pluginTranslationsEn },
     }
 
-    return {
+    const config: Config = {
       ...incomingConfig,
       collections,
       i18n: { ...incomingConfig.i18n, translations } as Config['i18n'],
     }
+    return runtime ? withCropRuntime(config, mediaSlug, runtime) : config
   }
 }
 
@@ -137,10 +133,12 @@ export function cropImageField(config: CropImageFieldConfig): Field {
       {
         name: 'cropData',
         type: 'json',
+        validate: validateCropData,
       },
       {
         name: 'generatedUrls',
         type: 'json',
+        hooks: { beforeChange: [makeGenerateCropsHook(config.crops, mediaSlug)] },
       },
     ],
     label: config.label ?? false,

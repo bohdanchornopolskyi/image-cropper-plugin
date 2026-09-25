@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { FocalPoint } from '../crop-geometry.js'
 import type { CropData, CropDefinition, GeneratedUrls } from '../types.js'
 
-import { buildCropRequests } from '../crop-requests.js'
+import { cropTargets, sameCoords } from '../crop-targets.js'
 import { isRecord } from '../isRecord.js'
 
 export type MediaDoc = {
@@ -38,12 +38,11 @@ function formatFileSize(bytes: number): string {
 export function useCropImageField(args: {
   apiRoute: string
   cropDefinitions: CropDefinition[]
-  endpoint: string
   mediaCollectionSlug: string
   path: string
   required: boolean
 }) {
-  const { apiRoute, cropDefinitions, endpoint, mediaCollectionSlug, path, required } = args
+  const { apiRoute, cropDefinitions, mediaCollectionSlug, path, required } = args
 
   const validateImage = useCallback<Validate>(
     (value, { req: { t } }) =>
@@ -60,7 +59,11 @@ export function useCropImageField(args: {
     path: `${path}.image`,
     validate: validateImage,
   })
-  const { setValue: setCropData, value: cropData } = useField<CropData | null>({
+  const {
+    setValue: setCropData,
+    showError: showCropDataError,
+    value: cropData,
+  } = useField<CropData | null>({
     path: `${path}.cropData`,
   })
   const { setValue: setGeneratedUrls, value: generatedUrls } = useField<GeneratedUrls | null>({
@@ -111,7 +114,6 @@ export function useCropImageField(args: {
     useDocumentDrawer({ collectionSlug: mediaCollectionSlug })
 
   const [previewOpen, setPreviewOpen] = useState(false)
-  const [generating, setGenerating] = useState(false)
 
   const selectDoc = useCallback(
     (doc: Record<string, unknown>, docID: string) => {
@@ -162,9 +164,19 @@ export function useCropImageField(args: {
       return
     }
 
+    // Crops render on the server when the document saves. Until then, drop the URLs of
+    // crops that changed so the preview never shows an image that no longer matches.
+    const prevCrops = cropData ?? {}
+    const prevUrls = generatedUrls ?? {}
+    const keptUrls: GeneratedUrls = {}
+    for (const { name, coords, key } of cropTargets(cropDefinitions, finalCrops)) {
+      if (prevUrls[key] && sameCoords(prevCrops[name], coords)) {
+        keptUrls[key] = prevUrls[key]
+      }
+    }
     setCropData(finalCrops)
+    setGeneratedUrls(keptUrls)
     setModalOpen(false)
-    setGenerating(true)
 
     // The focal point lives on the media doc, in the same focalX/focalY fields
     // Payload's own image editor writes to — one source of truth, so the stored
@@ -173,59 +185,23 @@ export function useCropImageField(args: {
     // (see uploads/generateFileData.ts), so consumers should read the point at
     // render time via getFocalPosition. Undefined when the field has
     // focalPoint:false — never touch the media doc in that case.
-    // Kicked off but not awaited here: crop generation only reads the source file,
-    // so it must not queue behind this write. Joined below.
-    const focalSaved =
-      focal && (focal.x !== media.focalX || focal.y !== media.focalY)
-        ? fetch(`${apiRoute}/${mediaCollectionSlug}/${media.id}`, {
-            body: JSON.stringify({ focalX: focal.x, focalY: focal.y }),
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            method: 'PATCH',
-          })
-            .then((res) => res.ok)
-            .catch((e: unknown) => {
-              console.error('[CropImageField] Failed to save focal point:', e)
-              return false
-            })
-        : null
-
-    const requests = buildCropRequests(cropDefinitions, finalCrops, media.id)
-    const results = await Promise.all(
-      requests.map(({ body, key }) =>
-        fetch(endpoint, {
-          body: JSON.stringify(body),
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST',
-        })
-          .then((res) => res.json())
-          .then((data: unknown) => {
-            if (isRecord(data) && typeof data.url === 'string') {
-              return { name: key, url: data.url }
-            }
-            return null
-          })
-          .catch((e: unknown) => {
-            console.error(`[CropImageField] Network error for crop "${key}":`, e)
-            return null
-          }),
-      ),
-    )
-
-    if (focal && (await focalSaved)) {
+    if (!focal || (focal.x === media.focalX && focal.y === media.focalY)) {
+      return
+    }
+    const saved = await fetch(`${apiRoute}/${mediaCollectionSlug}/${media.id}`, {
+      body: JSON.stringify({ focalX: focal.x, focalY: focal.y }),
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH',
+    })
+      .then((res) => res.ok)
+      .catch((e: unknown) => {
+        console.error('[CropImageField] Failed to save focal point:', e)
+        return false
+      })
+    if (saved) {
       setFetchedDoc((prev) => (prev ? { ...prev, focalX: focal.x, focalY: focal.y } : prev))
     }
-
-    const newUrls: GeneratedUrls = { ...(generatedUrls ?? {}) }
-    for (const result of results) {
-      if (result) {
-        newUrls[result.name] = result.url
-      }
-    }
-
-    setGeneratedUrls(newUrls)
-    setGenerating(false)
   }
 
   const remove = () => {
@@ -258,7 +234,6 @@ export function useCropImageField(args: {
     CreateMediaDrawer,
     crops,
     fileMeta,
-    generating,
     handleDocCreate,
     handleListSelect,
     handleSave,
@@ -271,6 +246,7 @@ export function useCropImageField(args: {
     remove,
     setModalOpen,
     setPreviewOpen,
+    showCropDataError,
     showError,
     urls,
   }

@@ -255,7 +255,7 @@ export function CropModal({
               {t('cancel')}
             </button>
             <button className={styles.btnPrimary} onClick={handleSave} type="button">
-              {t('saveAndGenerate')}
+              {t('applyCrops')}
             </button>
           </div>
         </div>

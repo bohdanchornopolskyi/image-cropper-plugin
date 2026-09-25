@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0] - 2026-09-25
+
+### Breaking
+
+- **The `generate-crop` endpoint is removed.** `POST /api/{mediaCollectionSlug}/generate-crop`
+  no longer exists. Crops are generated on the server when the document saves. Anything that
+  called the endpoint directly has to set `cropData` on the document instead. ([#15](https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues/15))
+- **Saves can fail on a crop error.** A crop that cannot be rendered, for example because the
+  source file is missing or S3 rejects the upload, now fails the save with an error on the field.
+  Before, the crop was dropped in the browser without telling anyone. ([#15](https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues/15))
+- **Crop coordinates are validated.** Coordinates outside the image, or a box with no area, are
+  rejected with a validation error on the field. ([#15](https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues/15))
+
+### Changed
+
+- **Crops render when the document saves.** The crop modal's **Apply** button only records the
+  coordinates, so a re-crop the editor never saves leaves the published crops untouched. Output
+  size, format and quality come only from the crop definitions in the config, never from the
+  request. Crops are rendered again only when their coordinates or the source image change.
+  ([#15](https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues/15))
+- **The preview grid** shows a crop as not yet generated between **Apply** and the document save.
+
+### Added
+
+- **Local API support.** Seeds, scripts and migrations that create or update documents with
+  `cropData` now get crops, with no admin UI involved. ([#15](https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues/15))
+
 ## [0.1.8] - 2026-09-25
 
 ### Changed

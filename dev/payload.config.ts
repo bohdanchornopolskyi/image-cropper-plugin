@@ -22,7 +22,8 @@ const buildConfigWithMemoryDB = async () => {
   if (process.env.NODE_ENV === 'test') {
     const memoryDB = await MongoMemoryReplSet.create({
       replSet: {
-        count: 3,
+        // One member supports transactions without elections, which interrupt connections.
+        count: 1,
         dbName: 'payloadmemory',
       },
     })
@@ -32,24 +33,27 @@ const buildConfigWithMemoryDB = async () => {
 
   const { field: cropField, plugin: cropPlugin } = createCropImage({
     mediaCollectionSlug: 'media',
-    s3: {
-      acl: 'public-read',
-      bucket: process.env.DO_SPACES_BUCKET!,
-      config: {
-        credentials: {
-          accessKeyId: process.env.DO_SPACES_ACCESS_KEY!,
-          secretAccessKey: process.env.DO_SPACES_SECRET_KEY!,
+    // Under test, crops go to local disk like the media files (see the s3Storage note below).
+    ...(process.env.NODE_ENV !== 'test' && {
+      s3: {
+        acl: 'public-read',
+        bucket: process.env.DO_SPACES_BUCKET!,
+        config: {
+          credentials: {
+            accessKeyId: process.env.DO_SPACES_ACCESS_KEY!,
+            secretAccessKey: process.env.DO_SPACES_SECRET_KEY!,
+          },
+          endpoint: process.env.DO_SPACES_ENDPOINT!,
+          forcePathStyle: false,
+          region: process.env.DO_SPACES_REGION!,
         },
-        endpoint: process.env.DO_SPACES_ENDPOINT!,
-        forcePathStyle: false,
-        region: process.env.DO_SPACES_REGION!,
+        generateUrl: ({ filename, prefix }) => {
+          const parts = [process.env.DO_SPACES_CDN_ENDPOINT, prefix, filename].filter(Boolean)
+          return parts.join('/')
+        },
+        prefix: process.env.DO_SPACES_LOCATION,
       },
-      generateUrl: ({ filename, prefix }) => {
-        const parts = [process.env.DO_SPACES_CDN_ENDPOINT, prefix, filename].filter(Boolean)
-        return parts.join('/')
-      },
-      prefix: process.env.DO_SPACES_LOCATION,
-    },
+    }),
   })
 
   return buildConfig({

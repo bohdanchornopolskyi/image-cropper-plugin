@@ -478,11 +478,20 @@ import { CropImageField } from 'payload-plugin-image-cropper/client'
    > the point at render time with
    > [`getFocalPosition`](#combining-manual-crops-with-focal-point) instead — which is what
    > `resolveMediaCrop` does for you.
-4. On save, the field calls the `/api/{mediaCollectionSlug}/generate-crop` endpoint once per size (multi-size crops fan out automatically).
-5. The endpoint uses Sharp to extract, resize, and encode each crop region to the configured format.
-6. Generated files are written to the media collection's `staticDir` on disk (or handed to `onCropGenerated` for cloud upload).
-7. The public URLs are stored in `generatedUrls` under their key (or compound key for multi-size).
-8. When the source media document is deleted, all associated crop files are removed automatically.
+4. **Apply** in the modal only records the crop coordinates on the form. Nothing is rendered
+   yet, so a re-crop the editor never saves leaves the published crops untouched.
+5. When the document saves, a `beforeChange` hook on the field renders each crop with Sharp, once
+   per size (multi-size crops fan out automatically). Output size, format and quality come only
+   from the crop definitions in your config, never from the request. This runs for every save,
+   including the Local API, so seeds and scripts that set `cropData` get crops too.
+6. Only crops whose coordinates or source image changed are rendered again. Saving without
+   changes reuses the stored URLs.
+7. Coordinates outside the image are rejected with a validation error on the field, and a crop
+   that fails to render fails the save with an error on the field.
+8. Generated files are written to the media collection's `staticDir` on disk (or handed to
+   `onCropGenerated` or the `s3` bucket), and the public URLs are stored in `generatedUrls` under
+   their key (or compound key for multi-size).
+9. When the source media document is deleted, all associated crop files are removed automatically.
 
 > **Note:** for a preset an editor has never opened/saved, `getCropUrl` still falls back to the
 > plain original `image.url` (unchanged from prior versions) — the focal-point default described
