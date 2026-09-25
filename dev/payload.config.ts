@@ -180,11 +180,9 @@ const buildConfigWithMemoryDB = async () => {
               collections: {
                 media: {
                   generateFileURL: ({ filename, prefix }) => {
-                    const parts = [
-                      process.env.DO_SPACES_CDN_ENDPOINT,
-                      prefix,
-                      filename,
-                    ].filter(Boolean)
+                    const parts = [process.env.DO_SPACES_CDN_ENDPOINT, prefix, filename].filter(
+                      Boolean,
+                    )
                     return parts.join('/')
                   },
                   prefix: process.env.DO_SPACES_LOCATION,

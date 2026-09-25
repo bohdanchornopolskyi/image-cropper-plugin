@@ -3,32 +3,33 @@
 import { Button, FieldDescription, useConfig } from '@payloadcms/ui'
 
 import type { CropDefinition, StaticDescription, StaticLabel } from '../types.js'
+
 import { generateCropEndpoint } from '../crop-requests.js'
+import styles from './CropImageField.module.css'
+import { CropModal } from './CropModal.js'
+import { CropIcon, EditSvg, GridIcon, XSvg } from './icons.js'
+import { PreviewModal } from './PreviewModal.js'
+import { useCropImageField } from './useCropImageField.js'
 import { usePluginTranslation } from './usePluginTranslation.js'
 import { useResolveLabel } from './useResolveLabel.js'
-import { CropModal } from './CropModal.js'
-import { PreviewModal } from './PreviewModal.js'
-import { CropIcon, EditSvg, GridIcon, XSvg } from './icons.js'
-import { useCropImageField } from './useCropImageField.js'
-import styles from './CropImageField.module.css'
 
 type Props = {
-  path: string
   cropDefinitions?: CropDefinition[]
   fieldDescription?: StaticDescription
   fieldLabel?: StaticLabel
   focalPoint?: boolean
   mediaCollectionSlug?: string
+  path: string
   readOnly?: boolean
 }
 
 export function CropImageField({
-  path,
   cropDefinitions = [],
   fieldDescription,
   fieldLabel,
   focalPoint = true,
   mediaCollectionSlug = 'media',
+  path,
   readOnly,
 }: Props) {
   const { config } = useConfig()
@@ -39,26 +40,26 @@ export function CropImageField({
   const endpoint = generateCropEndpoint(apiRoute, mediaCollectionSlug)
 
   const {
-    media,
-    fileMeta,
-    urls,
-    crops,
-    anyCropSet,
     allCropsReady,
-    modalOpen,
-    setModalOpen,
-    previewOpen,
-    setPreviewOpen,
-    generating,
-    ListDrawer,
+    anyCropSet,
     CreateMediaDrawer,
-    openMediaDrawer,
-    openCreateDrawer,
-    handleListSelect,
+    crops,
+    fileMeta,
+    generating,
     handleDocCreate,
+    handleListSelect,
     handleSave,
+    ListDrawer,
+    media,
+    modalOpen,
+    openCreateDrawer,
+    openMediaDrawer,
+    previewOpen,
     remove,
-  } = useCropImageField({ path, cropDefinitions, mediaCollectionSlug, apiRoute, endpoint })
+    setModalOpen,
+    setPreviewOpen,
+    urls,
+  } = useCropImageField({ apiRoute, cropDefinitions, endpoint, mediaCollectionSlug, path })
 
   return (
     <div className={styles.wrap}>

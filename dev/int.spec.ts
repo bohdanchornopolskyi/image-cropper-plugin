@@ -10,11 +10,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vit
 
 import type { CropImageValue } from '../src/types.js'
 
+import { focalInCrop, initCrop } from '../src/crop-geometry.js'
+import { buildCropRequests, generateCropEndpoint } from '../src/crop-requests.js'
 import { makeGenerateCropHandler } from '../src/handler.js'
 import { makeDeleteOrphanedCrops } from '../src/hook.js'
-import { cropImageField, cropImagePlugin, createCropImage } from '../src/index.js'
-import { buildCropRequests, generateCropEndpoint } from '../src/crop-requests.js'
-import { focalInCrop, initCrop } from '../src/crop-geometry.js'
+import { createCropImage, cropImageField, cropImagePlugin } from '../src/index.js'
 import { getCropUrl, resolveMediaCrop } from '../src/utilities.js'
 
 /**
@@ -220,7 +220,7 @@ describe('createCropImage', () => {
     }) as unknown as Config
 
   test('plugin and field both default to the "media" collection slug', () => {
-    const { plugin, field } = createCropImage()
+    const { field, plugin } = createCropImage()
 
     const result = plugin(baseConfig()) as unknown as Config
     const media = result.collections?.find((c) => c.slug === 'media')
@@ -232,7 +232,7 @@ describe('createCropImage', () => {
   })
 
   test('plugin and field both use the same custom mediaCollectionSlug', () => {
-    const { plugin, field } = createCropImage({ mediaCollectionSlug: 'files' })
+    const { field, plugin } = createCropImage({ mediaCollectionSlug: 'files' })
 
     const result = plugin(baseConfig()) as unknown as Config
     const files = result.collections?.find((c) => c.slug === 'files')
@@ -251,12 +251,12 @@ describe('createCropImage', () => {
   })
 
   test('field still accepts all other CropImageFieldConfig options', () => {
-    const crops = [{ name: 'banner', label: 'Banner', width: 800, height: 200 }]
+    const crops = [{ name: 'banner', height: 200, label: 'Banner', width: 800 }]
     const { field } = createCropImage({ mediaCollectionSlug: 'files' })
     const f = field({
       name: 'hero',
-      label: 'Hero Image',
       crops,
+      label: 'Hero Image',
       required: true,
     }) as unknown as TestGroupField
     expect(f.name).toBe('hero')
@@ -284,11 +284,11 @@ describe('generateCropEndpoint', () => {
 })
 
 describe('buildCropRequests', () => {
-  const coords = { x: 10, y: 20, width: 80, height: 60 }
+  const coords = { height: 60, width: 80, x: 10, y: 20 }
 
   test('returns one request for a single-size crop definition', () => {
     const reqs = buildCropRequests(
-      [{ name: 'hero', label: 'Hero', width: 1920, height: 1080 }],
+      [{ name: 'hero', height: 1080, label: 'Hero', width: 1920 }],
       { hero: coords },
       'abc123',
     )
@@ -297,10 +297,10 @@ describe('buildCropRequests', () => {
     expect(reqs[0]?.body).toMatchObject({
       cropData: coords,
       cropName: 'hero',
-      mediaId: 'abc123',
-      outputWidth: 1920,
-      outputHeight: 1080,
       format: 'webp',
+      mediaId: 'abc123',
+      outputHeight: 1080,
+      outputWidth: 1920,
       quality: 80,
     })
   })
@@ -312,8 +312,8 @@ describe('buildCropRequests', () => {
           name: 'card',
           label: 'Card',
           sizes: [
-            { name: 'desktop', label: 'Desktop', width: 1200, height: 675 },
-            { name: 'mobile', label: 'Mobile', width: 600, height: 338 },
+            { name: 'desktop', height: 675, label: 'Desktop', width: 1200 },
+            { name: 'mobile', height: 338, label: 'Mobile', width: 600 },
           ],
         },
       ],
@@ -330,8 +330,8 @@ describe('buildCropRequests', () => {
   test('skips a crop definition when coordinates are missing from finalCrops', () => {
     const reqs = buildCropRequests(
       [
-        { name: 'hero', label: 'Hero', width: 1920, height: 1080 },
-        { name: 'thumb', label: 'Thumb', width: 300, height: 300 },
+        { name: 'hero', height: 1080, label: 'Hero', width: 1920 },
+        { name: 'thumb', height: 300, label: 'Thumb', width: 300 },
       ],
       { hero: coords },
       1,
@@ -342,7 +342,7 @@ describe('buildCropRequests', () => {
 
   test('honours explicit format and quality from the crop definition', () => {
     const reqs = buildCropRequests(
-      [{ name: 'banner', label: 'Banner', width: 800, height: 200, format: 'jpeg', quality: 90 }],
+      [{ name: 'banner', format: 'jpeg', height: 200, label: 'Banner', quality: 90, width: 800 }],
       { banner: coords },
       1,
     )
@@ -352,7 +352,7 @@ describe('buildCropRequests', () => {
 
   test('returns empty array when no crop coordinates exist at all', () => {
     const reqs = buildCropRequests(
-      [{ name: 'hero', label: 'Hero', width: 1920, height: 1080 }],
+      [{ name: 'hero', height: 1080, label: 'Hero', width: 1920 }],
       {},
       1,
     )
@@ -367,26 +367,26 @@ describe('buildCropRequests', () => {
 describe('initCrop – focal point default positioning', () => {
   test('with no existing crop and no focal point, defaults to dead-center (backward compatible)', () => {
     const crop = initCrop(1000, 1000, undefined, undefined)
-    expect(crop).toMatchObject({ x: 5, y: 5, width: 90, height: 90 })
+    expect(crop).toMatchObject({ height: 90, width: 90, x: 5, y: 5 })
   })
 
   test('with no existing crop and a center focal point (50/50), matches the dead-center default', () => {
     const crop = initCrop(1000, 1000, undefined, undefined, undefined, { x: 50, y: 50 })
-    expect(crop).toMatchObject({ x: 5, y: 5, width: 90, height: 90 })
+    expect(crop).toMatchObject({ height: 90, width: 90, x: 5, y: 5 })
   })
 
   test('with no existing crop, centers the default crop on an off-center focal point', () => {
     const crop = initCrop(1000, 1000, undefined, undefined, undefined, { x: 20, y: 80 })
     // width/height stay at the 90% default; x/y shift toward the focal point
-    expect(crop).toMatchObject({ x: 0, y: 10, width: 90, height: 90 })
+    expect(crop).toMatchObject({ height: 90, width: 90, x: 0, y: 10 })
   })
 
   test('clamps the focal-centered crop so it never exits the image bounds', () => {
     const crop = initCrop(1000, 1000, undefined, undefined, undefined, { x: 2, y: 98 })
     expect(crop.x).toBeGreaterThanOrEqual(0)
     expect(crop.y).toBeGreaterThanOrEqual(0)
-    expect(crop.x! + crop.width!).toBeLessThanOrEqual(100)
-    expect(crop.y! + crop.height!).toBeLessThanOrEqual(100)
+    expect(crop.x + crop.width).toBeLessThanOrEqual(100)
+    expect(crop.y + crop.height).toBeLessThanOrEqual(100)
   })
 
   test('with an aspect ratio and an off-center focal point, centers the aspect-constrained crop on it', () => {
@@ -394,28 +394,28 @@ describe('initCrop – focal point default positioning', () => {
     const withFocal = initCrop(1000, 1000, 16 / 9, undefined, undefined, { x: 10, y: 90 })
 
     // Size stays governed by the aspect ratio, independent of the focal point
-    expect(withFocal.width).toBeCloseTo(withoutFocal.width!, 5)
-    expect(withFocal.height).toBeCloseTo(withoutFocal.height!, 5)
+    expect(withFocal.width).toBeCloseTo(withoutFocal.width, 5)
+    expect(withFocal.height).toBeCloseTo(withoutFocal.height, 5)
     // Position shifts toward (and clamps at) the focal point
     expect(withFocal.x).toBe(0)
-    expect(withFocal.y).toBeCloseTo(100 - withFocal.height!, 5)
+    expect(withFocal.y).toBeCloseTo(100 - withFocal.height, 5)
   })
 
   test('an existing manual crop always wins when no focal point is given', () => {
-    const existing = { x: 10, y: 10, width: 50, height: 50 }
+    const existing = { height: 50, width: 50, x: 10, y: 10 }
     expect(initCrop(1000, 1000, undefined, existing)).toMatchObject(existing)
   })
 
   test('an existing manual crop wins when it still contains the focal point', () => {
-    const existing = { x: 10, y: 10, width: 50, height: 50 }
+    const existing = { height: 50, width: 50, x: 10, y: 10 }
     const crop = initCrop(1000, 1000, undefined, existing, undefined, { x: 30, y: 30 })
     expect(crop).toMatchObject(existing)
   })
 
   test('an existing crop that excludes the focal point is re-seeded from the point', () => {
-    const existing = { x: 10, y: 10, width: 50, height: 50 }
+    const existing = { height: 50, width: 50, x: 10, y: 10 }
     const crop = initCrop(1000, 1000, undefined, existing, undefined, { x: 90, y: 90 })
-    expect(crop).toMatchObject({ x: 10, y: 10, width: 90, height: 90 })
+    expect(crop).toMatchObject({ height: 90, width: 90, x: 10, y: 10 })
     expect(focalInCrop({ x: 90, y: 90 }, crop)).toBe(true)
   })
 
@@ -669,13 +669,14 @@ describe('makeGenerateCropHandler (isolated)', () => {
 
   function makeRequest(body: unknown, user: unknown = { id: '1' }): MockRequest {
     return {
-      json: async () => body,
+      json: () => Promise.resolve(body),
       payload: {
-        findByID: async () => ({
-          filename: 'source.jpg',
-          height: 300,
-          width: 400,
-        }),
+        findByID: () =>
+          Promise.resolve({
+            filename: 'source.jpg',
+            height: 300,
+            width: 400,
+          }),
       },
       user,
     }
@@ -869,7 +870,7 @@ describe('makeGenerateCropHandler (isolated)', () => {
         outputHeight: 100,
         outputWidth: 100,
       }),
-      payload: { findByID: async () => ({ filename: null, height: 300, width: 400 }) },
+      payload: { findByID: () => Promise.resolve({ filename: null, height: 300, width: 400 }) },
     }
     const res = await callHandler(handler, req)
     expect(res.status).toBe(404)
@@ -886,7 +887,7 @@ describe('makeGenerateCropHandler (isolated)', () => {
         outputWidth: 100,
       }),
       payload: {
-        findByID: async () => ({ filename: 'ghost.jpg', height: 300, width: 400 }),
+        findByID: () => Promise.resolve({ filename: 'ghost.jpg', height: 300, width: 400 }),
       },
     }
     const res = await callHandler(handler, req)
@@ -903,7 +904,7 @@ describe('makeGenerateCropHandler (isolated)', () => {
         outputHeight: 100,
         outputWidth: 100,
       }),
-      payload: { findByID: async () => ({ filename: 'source.jpg' }) },
+      payload: { findByID: () => Promise.resolve({ filename: 'source.jpg' }) },
     }
     const res = await callHandler(handler, req)
     expect(res.status).toBe(422)
@@ -1178,9 +1179,9 @@ describe('makeGenerateCropHandler – compound keys and onCropGenerated', () => 
 
   function makeRequest(body: unknown, user: unknown = { id: '1' }): MockRequest {
     return {
-      json: async () => body,
+      json: () => Promise.resolve(body),
       payload: {
-        findByID: async () => ({ filename: 'source.jpg', height: 300, width: 400 }),
+        findByID: () => Promise.resolve({ filename: 'source.jpg', height: 300, width: 400 }),
       },
       user,
     }
@@ -1319,12 +1320,14 @@ describe('makeGenerateCropHandler – compound keys and onCropGenerated', () => 
       .toBuffer()
 
     const mockFetch = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      arrayBuffer: async () =>
-        mockImageBuffer.buffer.slice(
-          mockImageBuffer.byteOffset,
-          mockImageBuffer.byteOffset + mockImageBuffer.byteLength,
+      arrayBuffer: () =>
+        Promise.resolve(
+          mockImageBuffer.buffer.slice(
+            mockImageBuffer.byteOffset,
+            mockImageBuffer.byteOffset + mockImageBuffer.byteLength,
+          ),
         ),
+      ok: true,
     })
     vi.stubGlobal('fetch', mockFetch)
 
@@ -1338,12 +1341,13 @@ describe('makeGenerateCropHandler – compound keys and onCropGenerated', () => 
         outputWidth: 50,
       }),
       payload: {
-        findByID: async () => ({
-          filename: 'nonexistent-remote.jpg',
-          height: 100,
-          url: 'https://s3.example.com/nonexistent-remote.jpg',
-          width: 100,
-        }),
+        findByID: () =>
+          Promise.resolve({
+            filename: 'nonexistent-remote.jpg',
+            height: 100,
+            url: 'https://s3.example.com/nonexistent-remote.jpg',
+            width: 100,
+          }),
       },
     }
 
@@ -1365,7 +1369,7 @@ describe('makeGenerateCropHandler – compound keys and onCropGenerated', () => 
         outputWidth: 50,
       }),
       payload: {
-        findByID: async () => ({ filename: 'nonexistent.jpg', height: 100, width: 100 }),
+        findByID: () => Promise.resolve({ filename: 'nonexistent.jpg', height: 100, width: 100 }),
       },
     }
 

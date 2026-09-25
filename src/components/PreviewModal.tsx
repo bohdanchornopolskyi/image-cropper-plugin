@@ -3,9 +3,10 @@
 import { createPortal } from 'react-dom'
 
 import type { CropData, CropDefinition, GeneratedUrls } from '../types.js'
+
+import styles from './CropImageField.module.css'
 import { usePluginTranslation } from './usePluginTranslation.js'
 import { useResolveLabel } from './useResolveLabel.js'
-import styles from './CropImageField.module.css'
 
 function CropCards({
   cropDefinitions,
@@ -23,18 +24,18 @@ function CropCards({
       ? def.sizes.map((size) => {
           const sizeLabel = resolveL(size.label) || size.name
           return {
-            key: `${def.name}.${size.name}`,
             defName: def.name,
             imgAlt: `${defLabel} — ${sizeLabel}`,
+            key: `${def.name}.${size.name}`,
             label: defLabel,
             size: `${sizeLabel} — ${size.width}×${size.height}`,
           }
         })
       : [
           {
-            key: def.name,
             defName: def.name,
             imgAlt: defLabel,
+            key: def.name,
             label: defLabel,
             size: `${def.width}×${def.height}`,
           },
@@ -43,7 +44,7 @@ function CropCards({
 
   return (
     <div className={styles.cropCards}>
-      {cards.map(({ key, defName, imgAlt, label, size }) => {
+      {cards.map(({ defName, imgAlt, key, label, size }) => {
         const url = urls[key]
         return (
           <div className={styles.cropCard} key={key}>
@@ -66,17 +67,19 @@ function CropCards({
 type PreviewModalProps = {
   cropDefinitions: CropDefinition[]
   crops: CropData
-  urls: GeneratedUrls
   onClose: () => void
+  urls: GeneratedUrls
 }
 
-export function PreviewModal({ cropDefinitions, crops, urls, onClose }: PreviewModalProps) {
+export function PreviewModal({ cropDefinitions, crops, onClose, urls }: PreviewModalProps) {
   const t = usePluginTranslation()
   return createPortal(
     <div
       className={styles.backdrop}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
+        if (e.target === e.currentTarget) {
+          onClose()
+        }
       }}
     >
       <div className={styles.previewModal}>

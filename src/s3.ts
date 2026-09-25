@@ -7,7 +7,9 @@ const DEFAULT_CACHE_CONTROL = 'public, max-age=31536000, immutable'
 let cachedClient: S3Client | undefined
 
 async function getClient(config: S3CropConfig): Promise<S3Client> {
-  if (cachedClient) return cachedClient
+  if (cachedClient) {
+    return cachedClient
+  }
   const { S3Client } = await import('@aws-sdk/client-s3')
   cachedClient = new S3Client({
     credentials: config.config.credentials,
@@ -55,7 +57,9 @@ export function makeS3CropStorage(config: S3CropConfig): CropStorage {
         new ListObjectsV2Command({ Bucket: config.bucket, Prefix: listPrefix }),
       )
 
-      if (!list.Contents?.length) return
+      if (!list.Contents?.length) {
+        return
+      }
 
       await Promise.all(
         list.Contents.map(({ Key }) =>
