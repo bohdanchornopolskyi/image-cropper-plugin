@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.1] - 2026-09-25
+
+### Added
+
+- **`getCropSrcSet(value, cropDefinition)`** returns a `srcset` string with one `url widthw`
+  entry per generated size, largest first, skipping sizes that have no file yet. It takes the
+  crop definition because that is where the pixel widths live. ([#17](https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues/17))
+- **`requireAllCrops` field option** blocks saving while an image is selected but any crop has
+  no coordinates, and the error names the missing crops. Off by default. ([#20](https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues/20))
+- **`regenerateCrops({ payload, collection, field })`** renders the stored crops of every
+  document again from their coordinates, for example after a crop definition gains a size or
+  changes format. It runs in batches and reports how many documents were regenerated, skipped
+  and failed. ([#21](https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues/21))
+- **Crop modal keyboard access and tab status.** ([#19](https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues/19))
+  - Both modals are real dialogs: Escape closes them, Tab can't reach the page behind them, and
+    focus returns to the button that opened them.
+  - Each crop tab shows whether its crop is set.
+  - **Reset to focal point** centres the active crop on the focal point, within the preset's
+    aspect ratio and minimum size.
+
 ## [0.2.0] - 2026-09-25
 
 ### Breaking
