@@ -13,7 +13,7 @@ import type { CropImageValue } from '../src/types.js'
 
 import { focalInCrop, initCrop } from '../src/crop-geometry.js'
 import { cropTargets } from '../src/crop-targets.js'
-import { validateCropData } from '../src/field-hooks.js'
+import { makeValidateCropData } from '../src/field-hooks.js'
 import { generateCrops } from '../src/generate.js'
 import { makeDeleteOrphanedCrops } from '../src/hook.js'
 import { createCropImage, cropImageField, cropImagePlugin } from '../src/index.js'
@@ -363,11 +363,19 @@ describe('cropTargets', () => {
 // Unit tests – validateCropData
 // ---------------------------------------------------------------------------
 
-describe('validateCropData', () => {
+describe('cropData validation', () => {
   const t = (key: string, opts?: Record<string, unknown>) =>
     `${key}${opts ? JSON.stringify(opts) : ''}`
-  const validate = (value: unknown) =>
-    (validateCropData as (v: unknown, o: unknown) => string | true)(value, { req: { t } })
+  const crops = [
+    { name: 'desktop', height: 1080, label: { de: 'Desktop DE', en: 'Desktop' }, width: 1920 },
+    { name: 'mobile', height: 1470, label: 'Mobile', width: 828 },
+  ]
+  const run = (requireAllCrops: boolean, value: unknown, image: unknown = null) =>
+    (makeValidateCropData(crops, requireAllCrops) as (v: unknown, o: unknown) => string | true)(
+      value,
+      { req: { i18n: { language: 'en' }, t }, siblingData: { image } },
+    )
+  const validate = (value: unknown) => run(false, value)
 
   test('accepts empty values and coordinates inside the image', () => {
     expect(validate(null)).toBe(true)
@@ -389,6 +397,28 @@ describe('validateCropData', () => {
 
   test('rejects a value that is not an object', () => {
     expect(validate('nope')).toBe('plugin-image-cropper:invalidCropData')
+  })
+
+  describe('requireAllCrops', () => {
+    const box = { height: 10, width: 10, x: 0, y: 0 }
+
+    test('names every missing crop once an image is selected', () => {
+      expect(run(true, null, 'media-1')).toBe(
+        'plugin-image-cropper:missingCrops{"names":"Desktop, Mobile"}',
+      )
+      expect(run(true, { desktop: box }, { id: 'media-1' })).toBe(
+        'plugin-image-cropper:missingCrops{"names":"Mobile"}',
+      )
+    })
+
+    test('passes with every crop set, or with no image', () => {
+      expect(run(true, { desktop: box, mobile: box }, 'media-1')).toBe(true)
+      expect(run(true, null, null)).toBe(true)
+    })
+
+    test('is off by default', () => {
+      expect(run(false, { desktop: box }, 'media-1')).toBe(true)
+    })
   })
 })
 
@@ -1114,6 +1144,25 @@ describe('Payload integration', () => {
         },
       })
       expect((post.heroImage?.generatedUrls as Record<string, string>).desktop).not.toMatch(/evil/)
+    })
+
+    test('with requireAllCrops, saving with a missing crop fails and names it', async () => {
+      const media = await createMedia('save-missing-crop.png')
+      await expect(
+        payload.create({
+          collection: 'posts',
+          data: { heroImage: { cropData: { desktop: heroCrops.desktop }, image: media.id } },
+        }),
+      ).rejects.toMatchObject({
+        data: {
+          errors: [
+            expect.objectContaining({
+              message: 'Set every crop before saving: Mobile',
+              path: 'heroImage.cropData',
+            }),
+          ],
+        },
+      })
     })
 
     test('rejects coordinates outside the image', async () => {

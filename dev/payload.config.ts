@@ -88,6 +88,7 @@ const buildConfigWithMemoryDB = async () => {
               },
             ],
             label: { de: 'Heldenbild', en: 'Hero Image' },
+            requireAllCrops: true,
           }),
           cropField({
             name: 'cardImage',

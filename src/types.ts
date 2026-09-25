@@ -217,5 +217,11 @@ export type CropImageFieldConfig = {
   /** Override if your media collection uses a non-default slug. Defaults to 'media'. */
   mediaCollectionSlug?: string
   name: string
+  /**
+   * Block saving while an image is selected but any crop has no coordinates, instead of
+   * letting that crop fall back to the uncropped original. The image itself is still
+   * governed by `required`. Defaults to `false`.
+   */
+  requireAllCrops?: boolean
   required?: boolean
 }

@@ -14,6 +14,7 @@ export const de = {
   editCrops: 'Ausschnitte bearbeiten',
   focalPoint: 'Fokuspunkt',
   invalidCropData: 'Ungültige Ausschnittsdaten',
+  missingCrops: 'Vor dem Speichern alle Ausschnitte festlegen: {{names}}',
   or: 'oder',
   previewCropsAndSizes: 'Vorschau: Ausschnitte & Größen',
   remove: 'Entfernen',

@@ -219,6 +219,7 @@ Generated URLs are stored under compound keys: `card.lg`, `card.md`, `card.sm`.
 | `crops` | `CropDefinition[]` | — | **Required.** Array of crop presets |
 | `label` | `string \| Record<string, string>` | — | Display label in the admin panel. Accepts a locale map (see [Localized labels](#localized-labels)). |
 | `required` | `boolean` | `false` | Whether a selection is required |
+| `requireAllCrops` | `boolean` | `false` | Block saving while an image is selected but any crop has no coordinates. The error names the missing crops. Use it for layouts that break when a crop falls back to the uncropped original. Whether an image is needed at all is still up to `required`. |
 | `focalPoint` | `boolean` | `true` | Show the draggable focal-point marker in the crop modal, saved to the media doc's `focalX`/`focalY`. Set to `false` for fields where subject position is irrelevant (logos, flat graphics) — the marker is hidden and the media doc is never written to. |
 | `mediaCollectionSlug` | `string` | `'media'` | Override the media collection slug for this field |
 | `admin.condition` | `function` | — | Conditionally show this field |

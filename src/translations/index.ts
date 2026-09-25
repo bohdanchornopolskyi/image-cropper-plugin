@@ -17,6 +17,7 @@ export type PluginTranslationKey =
   | 'editCrops'
   | 'focalPoint'
   | 'invalidCropData'
+  | 'missingCrops'
   | 'or'
   | 'previewCropsAndSizes'
   | 'remove'

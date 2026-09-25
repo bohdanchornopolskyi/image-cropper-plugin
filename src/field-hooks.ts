@@ -8,6 +8,7 @@ import type { CropCoords, CropData, CropDefinition, CropStorage, GeneratedUrls }
 import { cropTargets, sameCoords } from './crop-targets.js'
 import { generateCrops, type SourceMedia } from './generate.js'
 import { isRecord } from './isRecord.js'
+import { resolveLabel } from './utilities.js'
 
 const RUNTIME_KEY = 'payload-plugin-image-cropper'
 
@@ -57,16 +58,36 @@ function isInsideImage(c: unknown): c is CropCoords {
   )
 }
 
-export const validateCropData: Validate = (value, { req }) => {
-  const t = pluginT(req.t)
-  if (value === null || value === undefined) {
+/**
+ * Validates `cropData`: every stored box must lie inside the image, and with `requireAllCrops`
+ * every crop definition needs coordinates once an image is selected.
+ */
+export function makeValidateCropData(
+  cropDefinitions: CropDefinition[],
+  requireAllCrops: boolean,
+): Validate {
+  return (value, { req, siblingData }) => {
+    const t = pluginT(req.t)
+    if (value !== null && value !== undefined && !isRecord(value)) {
+      return t('plugin-image-cropper:invalidCropData')
+    }
+    const crops = value ?? {}
+
+    const bad = Object.entries(crops).find(([, coords]) => !isInsideImage(coords))
+    if (bad) {
+      return t('plugin-image-cropper:cropOutsideImage', { name: bad[0] })
+    }
+
+    const imageId = relationId(isRecord(siblingData) ? siblingData.image : null)
+    const missing = cropDefinitions.filter((def) => !crops[def.name])
+    if (requireAllCrops && imageId !== null && missing.length) {
+      const names = missing.map(
+        (def) => resolveLabel(def.label, req.i18n?.language ?? 'en') || def.name,
+      )
+      return t('plugin-image-cropper:missingCrops', { names: names.join(', ') })
+    }
     return true
   }
-  if (!isRecord(value)) {
-    return t('plugin-image-cropper:invalidCropData')
-  }
-  const bad = Object.entries(value).find(([, coords]) => !isInsideImage(coords))
-  return bad ? t('plugin-image-cropper:cropOutsideImage', { name: bad[0] }) : true
 }
 
 function relationId(v: unknown): null | number | string {

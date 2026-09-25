@@ -14,6 +14,7 @@ export const en = {
   editCrops: 'Edit Crops',
   focalPoint: 'Focal Point',
   invalidCropData: 'Invalid crop data',
+  missingCrops: 'Set every crop before saving: {{names}}',
   or: 'or',
   previewCropsAndSizes: 'Preview crops & sizes',
   remove: 'Remove',
