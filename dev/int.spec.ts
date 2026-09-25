@@ -757,6 +757,49 @@ describe('makeGenerateCropHandler (isolated)', () => {
     expect(fs.existsSync(filePath)).toBe(true)
   })
 
+  test('crops EXIF-rotated images in the displayed orientation', async () => {
+    // Stored 400×200 with orientation 6, so browsers display it as 200×400:
+    // the left (red) half ends up on top and the right (blue) half at the bottom.
+    const square = (background: string) =>
+      sharp({ create: { background, channels: 3, height: 200, width: 200 } })
+        .png()
+        .toBuffer()
+    await sharp({ create: { background: 'black', channels: 3, height: 200, width: 400 } })
+      .composite([
+        { input: await square('red'), left: 0, top: 0 },
+        { input: await square('blue'), left: 200, top: 0 },
+      ])
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .toFile(path.join(mediaDir, 'rotated.jpg'))
+
+    const handler = makeGenerateCropHandler(mediaDir, 'media')
+    const req: MockRequest = {
+      json: () =>
+        Promise.resolve({
+          cropData: { height: 50, width: 100, x: 0, y: 50 },
+          cropName: 'bottom',
+          format: 'png',
+          mediaId: '1',
+          outputHeight: 100,
+          outputWidth: 100,
+        }),
+      payload: {
+        findByID: () => Promise.resolve({ filename: 'rotated.jpg', height: 200, width: 400 }),
+      },
+      user: { id: '1' },
+    }
+    const res = await callHandler(handler, req)
+    const body = (await res.json()) as { url: string }
+
+    const output = path.join(mediaDir, path.basename(body.url))
+    const { height, width } = await sharp(output).metadata()
+    expect({ height, width }).toEqual({ height: 100, width: 100 })
+    const { dominant } = await sharp(output).stats()
+    expect(dominant.b).toBeGreaterThan(200)
+    expect(dominant.r).toBeLessThan(50)
+  })
+
   test('generates a jpeg crop when format is jpeg', async () => {
     const handler = makeGenerateCropHandler(mediaDir, 'media')
     const res = await callHandler(
