@@ -3,6 +3,7 @@
 import { useTranslation } from '@payloadcms/ui'
 
 import type { StaticLabel } from '../types.js'
+
 import { resolveLabel } from '../utilities.js'
 
 export function useResolveLabel(): (label: StaticLabel | undefined) => string {

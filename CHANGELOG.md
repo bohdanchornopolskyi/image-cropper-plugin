@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.7] - 2026-09-25
+
+### Fixed
+
+- **Custom API routes**: the field built its crop endpoint from a hardcoded `/api`, so projects
+  with a custom `routes.api` could not generate crops. It now uses the configured route.
+  ([#7](https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues/7))
+- **EXIF-rotated images**: phone photos stored with an orientation tag were cropped in the
+  wrong region. Sources are now auto-oriented before extraction, and the crop maths uses the
+  oriented dimensions. A source file Sharp cannot read returns a 422 instead of a 500.
+  ([#8](https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues/8))
+- **Required fields and validation errors**: `required: true` now shows the `*` marker and
+  blocks the save with Payload's field error on the crop field, instead of failing without
+  pointing at it. ([#9](https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues/9))
+- **S3 cleanup past 1000 crops**: deleting crops now pages through the whole bucket listing
+  instead of stopping at the first 1000 objects. Each plugin instance also gets its own S3
+  client, so a second instance no longer uploads with the first one's bucket credentials.
+  ([#10](https://github.com/bohdanchornopolskyi/image-cropper-plugin/issues/10))
+
 ## [0.1.6] - 2026-09-14
 
 ### Added

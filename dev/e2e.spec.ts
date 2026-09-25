@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import sharp from 'sharp'
 
 const EMAIL = 'dev@payloadcms.com'
 const PASSWORD = 'test'
@@ -110,6 +111,38 @@ test('crop modal can be closed without saving', async ({ page }) => {
 
   await page.keyboard.press('Escape')
   await expect(modal).not.toBeVisible({ timeout: 5_000 })
+})
+
+test('a required crop field shows the required marker and a validation error', async ({ page }) => {
+  await login(page)
+  const filename = `required-${Date.now()}.png`
+  const upload = await page.request.post('/api/media', {
+    multipart: {
+      file: {
+        name: filename,
+        buffer: await sharp({
+          create: { background: 'teal', channels: 3, height: 90, width: 160 },
+        })
+          .png()
+          .toBuffer(),
+        mimeType: 'image/png',
+      },
+    },
+  })
+  expect(upload.ok()).toBe(true)
+
+  await page.goto('/admin/collections/pages/create')
+
+  const field = page.locator('#field-coverImage')
+  await expect(field.getByText('*', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: /save/i }).click()
+  const error = field.locator('.field-error')
+  await expect(error).toHaveText(/required/i)
+
+  await field.getByRole('button', { name: /choose from existing/i }).click()
+  await page.locator('.list-drawer').getByText(filename).click()
+  await expect(error).toBeHidden()
 })
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,13 @@
 import type { CropData, CropDefinition, ImageFormat } from './types.js'
 
+export function generateCropEndpoint(
+  apiRoute: string | undefined,
+  mediaCollectionSlug: string,
+): string {
+  return `${apiRoute || '/api'}/${mediaCollectionSlug}/generate-crop`
+}
+
 export type CropRequest = {
-  key: string
   body: {
     cropData: CropData[string]
     cropName: string
@@ -11,6 +17,7 @@ export type CropRequest = {
     outputWidth: number
     quality: number
   }
+  key: string
 }
 
 /**
@@ -26,14 +33,15 @@ export function buildCropRequests(
 ): CropRequest[] {
   return cropDefinitions.flatMap((def) => {
     const coords = finalCrops[def.name]
-    if (!coords) return []
+    if (!coords) {
+      return []
+    }
 
     const targets = def.sizes
-      ? def.sizes.map((s) => ({ key: `${def.name}.${s.name}`, width: s.width, height: s.height }))
-      : [{ key: def.name, width: def.width, height: def.height }]
+      ? def.sizes.map((s) => ({ height: s.height, key: `${def.name}.${s.name}`, width: s.width }))
+      : [{ height: def.height, key: def.name, width: def.width }]
 
-    return targets.map(({ key, width, height }) => ({
-      key,
+    return targets.map(({ height, key, width }) => ({
       body: {
         cropData: coords,
         cropName: key,
@@ -43,6 +51,7 @@ export function buildCropRequests(
         outputWidth: width,
         quality: def.quality ?? 80,
       },
+      key,
     }))
   })
 }

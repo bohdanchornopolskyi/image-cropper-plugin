@@ -1,5 +1,7 @@
 'use client'
 
+import type { Validate } from 'payload'
+
 import { useDocumentDrawer, useField, useListDrawer } from '@payloadcms/ui'
 import { useCallback, useEffect, useState } from 'react'
 
@@ -39,15 +41,24 @@ export function useCropImageField(args: {
   endpoint: string
   mediaCollectionSlug: string
   path: string
+  required: boolean
 }) {
-  const { apiRoute, cropDefinitions, endpoint, mediaCollectionSlug, path } = args
+  const { apiRoute, cropDefinitions, endpoint, mediaCollectionSlug, path, required } = args
+
+  const validateImage = useCallback<Validate>(
+    (value, { req: { t } }) =>
+      required && !value && typeof value !== 'number' ? t('validation:required') : true,
+    [required],
+  )
 
   const {
     filterOptions,
     setValue: setImageValue,
+    showError,
     value: imageRaw,
   } = useField<MediaDoc | null | number>({
     path: `${path}.image`,
+    validate: validateImage,
   })
   const { setValue: setCropData, value: cropData } = useField<CropData | null>({
     path: `${path}.cropData`,
@@ -260,6 +271,7 @@ export function useCropImageField(args: {
     remove,
     setModalOpen,
     setPreviewOpen,
+    showError,
     urls,
   }
 }

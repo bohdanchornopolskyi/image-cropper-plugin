@@ -141,6 +141,19 @@ const buildConfigWithMemoryDB = async () => {
         ],
       },
       {
+        slug: 'pages',
+        fields: [
+          cropField({
+            name: 'coverImage',
+            crops: [
+              { name: 'wide', aspectRatio: 16 / 9, height: 1080, label: 'Wide', width: 1920 },
+            ],
+            label: 'Cover Image',
+            required: true,
+          }),
+        ],
+      },
+      {
         slug: 'media',
         fields: [],
         upload: {
@@ -180,11 +193,9 @@ const buildConfigWithMemoryDB = async () => {
               collections: {
                 media: {
                   generateFileURL: ({ filename, prefix }) => {
-                    const parts = [
-                      process.env.DO_SPACES_CDN_ENDPOINT,
-                      prefix,
-                      filename,
-                    ].filter(Boolean)
+                    const parts = [process.env.DO_SPACES_CDN_ENDPOINT, prefix, filename].filter(
+                      Boolean,
+                    )
                     return parts.join('/')
                   },
                   prefix: process.env.DO_SPACES_LOCATION,
@@ -207,6 +218,8 @@ const buildConfigWithMemoryDB = async () => {
     secret: process.env.PAYLOAD_SECRET || 'test-secret_key',
     sharp,
     typescript: {
+      // The spawned generate:types process imports this config, starts its own in-memory DB and never exits.
+      autoGenerate: process.env.NODE_ENV !== 'test',
       outputFile: path.resolve(dirname, 'payload-types.ts'),
     },
   })

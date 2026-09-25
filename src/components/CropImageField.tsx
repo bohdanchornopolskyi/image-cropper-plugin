@@ -1,72 +1,88 @@
 'use client'
 
-import { Button, FieldDescription, useConfig } from '@payloadcms/ui'
+import { Button, FieldDescription, FieldError, useConfig } from '@payloadcms/ui'
 
 import type { CropDefinition, StaticDescription, StaticLabel } from '../types.js'
+
+import { generateCropEndpoint } from '../crop-requests.js'
+import styles from './CropImageField.module.css'
+import { CropModal } from './CropModal.js'
+import { CropIcon, EditSvg, GridIcon, XSvg } from './icons.js'
+import { PreviewModal } from './PreviewModal.js'
+import { useCropImageField } from './useCropImageField.js'
 import { usePluginTranslation } from './usePluginTranslation.js'
 import { useResolveLabel } from './useResolveLabel.js'
-import { CropModal } from './CropModal.js'
-import { PreviewModal } from './PreviewModal.js'
-import { CropIcon, EditSvg, GridIcon, XSvg } from './icons.js'
-import { useCropImageField } from './useCropImageField.js'
-import styles from './CropImageField.module.css'
 
 type Props = {
-  path: string
   cropDefinitions?: CropDefinition[]
   fieldDescription?: StaticDescription
   fieldLabel?: StaticLabel
   focalPoint?: boolean
   mediaCollectionSlug?: string
-  generateCropEndpoint?: string
+  path: string
   readOnly?: boolean
+  required?: boolean
 }
 
 export function CropImageField({
-  path,
   cropDefinitions = [],
   fieldDescription,
   fieldLabel,
   focalPoint = true,
   mediaCollectionSlug = 'media',
-  generateCropEndpoint,
+  path,
   readOnly,
+  required = false,
 }: Props) {
   const { config } = useConfig()
   const resolveL = useResolveLabel()
   const t = usePluginTranslation()
   const apiRoute = config.routes.api || '/api'
   const resolvedFieldLabel = resolveL(fieldLabel ?? 'Image')
-  const endpoint = generateCropEndpoint ?? `${apiRoute}/${mediaCollectionSlug}/generate-crop`
+  const endpoint = generateCropEndpoint(apiRoute, mediaCollectionSlug)
 
   const {
-    media,
-    fileMeta,
-    urls,
-    crops,
-    anyCropSet,
     allCropsReady,
-    modalOpen,
-    setModalOpen,
-    previewOpen,
-    setPreviewOpen,
-    generating,
-    ListDrawer,
+    anyCropSet,
     CreateMediaDrawer,
-    openMediaDrawer,
-    openCreateDrawer,
-    handleListSelect,
+    crops,
+    fileMeta,
+    generating,
     handleDocCreate,
+    handleListSelect,
     handleSave,
+    ListDrawer,
+    media,
+    modalOpen,
+    openCreateDrawer,
+    openMediaDrawer,
+    previewOpen,
     remove,
-  } = useCropImageField({ path, cropDefinitions, mediaCollectionSlug, apiRoute, endpoint })
+    setModalOpen,
+    setPreviewOpen,
+    showError,
+    urls,
+  } = useCropImageField({
+    apiRoute,
+    cropDefinitions,
+    endpoint,
+    mediaCollectionSlug,
+    path,
+    required,
+  })
 
   return (
-    <div className={styles.wrap}>
+    <div className={styles.wrap} id={`field-${path.replace(/\./g, '__')}`}>
       <div className={styles.labelWrap}>
-        <label className={styles.label}>{resolvedFieldLabel}</label>
+        <label className={styles.label}>
+          {resolvedFieldLabel}
+          {required && <span className={styles.required}>*</span>}
+        </label>
       </div>
       {fieldDescription ? <FieldDescription description={fieldDescription} path={path} /> : null}
+      <div className={styles.errorWrap}>
+        <FieldError path={`${path}.image`} showError={showError} />
+      </div>
 
       {!media ? (
         <div className="dropzone">

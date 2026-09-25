@@ -39,7 +39,7 @@ function isGenerateCropBody(v: unknown): v is GenerateCropBody {
   if (typeof v.format !== 'undefined' && !VALID_FORMATS.includes(v.format as ImageFormat)) {
     return false
   }
-  if (typeof v.cropName !== 'string' || !/^[\w][\w.-]*$/.test(v.cropName)) {
+  if (typeof v.cropName !== 'string' || !/^\w[\w.-]*$/.test(v.cropName)) {
     return false
   }
   return (
@@ -69,13 +69,15 @@ function applyFormat(pipeline: sharp.Sharp, format: ImageFormat, quality: number
 async function resolveSourceInput(
   localPath: string,
   mediaUrl: string | undefined,
-): Promise<Buffer | string | null> {
+): Promise<Buffer | null | string> {
   if (fs.existsSync(localPath)) {
     return localPath
   }
   if (typeof mediaUrl === 'string' && /^https?:\/\//.test(mediaUrl)) {
     const res = await fetch(mediaUrl)
-    if (!res.ok) return null
+    if (!res.ok) {
+      return null
+    }
     return Buffer.from(await res.arrayBuffer())
   }
   return null
@@ -86,7 +88,7 @@ export function makeGenerateCropHandler(
   mediaCollectionSlug: string,
   onCropGenerated?: (
     ctx: OnCropGeneratedContext,
-  ) => Promise<{ url: string } | void> | { url: string } | void,
+  ) => { url: string } | Promise<{ url: string } | void> | void,
   storage?: CropStorage,
 ): PayloadHandler {
   const mediaDirBase = path.basename(mediaDir)
@@ -121,9 +123,9 @@ export function makeGenerateCropHandler(
 
     const {
       filename,
-      height: originalHeight,
+      height: docHeight,
       url: mediaUrl,
-      width: originalWidth,
+      width: docWidth,
     } = (mediaDoc ?? {}) as {
       filename?: string
       height?: number
@@ -135,7 +137,7 @@ export function makeGenerateCropHandler(
       return Response.json({ error: 'Media not found' }, { status: 404 })
     }
 
-    if (!originalWidth || !originalHeight) {
+    if (!docWidth || !docHeight) {
       return Response.json({ error: 'Media has no dimensions' }, { status: 422 })
     }
 
@@ -146,6 +148,14 @@ export function makeGenerateCropHandler(
     if (!sourceInput) {
       return Response.json({ error: `Source file not found: ${safeFilename}` }, { status: 404 })
     }
+
+    const metadata = await sharp(sourceInput)
+      .metadata()
+      .catch(() => null)
+    if (!metadata) {
+      return Response.json({ error: 'Source file is not a readable image' }, { status: 422 })
+    }
+    const { height: originalHeight, width: originalWidth } = metadata.autoOrient
 
     const left = Math.max(0, Math.round((cropData.x / 100) * originalWidth))
     const top = Math.max(0, Math.round((cropData.y / 100) * originalHeight))
@@ -194,11 +204,18 @@ export function makeGenerateCropHandler(
 
     try {
       const pipeline = sharp(sourceInput)
+        .autoOrient()
         .extract({ height: cropH, left, top, width: cropW })
         .resize(outputWidth, outputHeight, { fit: 'fill' })
 
       const buffer = await applyFormat(pipeline, format, quality).toBuffer()
-      const ctx: OnCropGeneratedContext = { buffer, cropName, filename: outputFilename, format, mediaId }
+      const ctx: OnCropGeneratedContext = {
+        buffer,
+        cropName,
+        filename: outputFilename,
+        format,
+        mediaId,
+      }
 
       if (useCloudStorage) {
         const result = await useCloudStorage.upload(ctx)
