@@ -13,7 +13,7 @@ import type { CropImageValue } from '../src/types.js'
 import { makeGenerateCropHandler } from '../src/handler.js'
 import { makeDeleteOrphanedCrops } from '../src/hook.js'
 import { cropImageField, cropImagePlugin, createCropImage } from '../src/index.js'
-import { buildCropRequests } from '../src/crop-requests.js'
+import { buildCropRequests, generateCropEndpoint } from '../src/crop-requests.js'
 import { focalInCrop, initCrop } from '../src/crop-geometry.js'
 import { getCropUrl, resolveMediaCrop } from '../src/utilities.js'
 
@@ -97,15 +97,18 @@ describe('cropImageField', () => {
     expect(imageField?.relationTo).toBe('images')
   })
 
-  test('generateCropEndpoint clientProp reflects mediaCollectionSlug', () => {
+  test('mediaCollectionSlug clientProp reflects mediaCollectionSlug', () => {
     const field = cropImageField({
       name: 'hero',
       crops: [],
       mediaCollectionSlug: 'files',
     }) as unknown as TestGroupField
-    expect(field.admin?.components?.Field?.clientProps?.generateCropEndpoint).toBe(
-      '/api/files/generate-crop',
-    )
+    expect(field.admin?.components?.Field?.clientProps?.mediaCollectionSlug).toBe('files')
+  })
+
+  test('does not hardcode the crop endpoint into clientProps', () => {
+    const field = cropImageField({ name: 'hero', crops: [] }) as unknown as TestGroupField
+    expect(field.admin?.components?.Field?.clientProps).not.toHaveProperty('generateCropEndpoint')
   })
 
   test('cropDefinitions clientProp contains the provided crops', () => {
@@ -225,9 +228,7 @@ describe('createCropImage', () => {
     expect(endpoints?.some((e) => e.path === '/generate-crop')).toBe(true)
 
     const f = field({ name: 'hero', crops: [] }) as unknown as TestGroupField
-    expect(f.admin?.components?.Field?.clientProps?.generateCropEndpoint).toBe(
-      '/api/media/generate-crop',
-    )
+    expect(f.admin?.components?.Field?.clientProps?.mediaCollectionSlug).toBe('media')
   })
 
   test('plugin and field both use the same custom mediaCollectionSlug', () => {
@@ -239,9 +240,7 @@ describe('createCropImage', () => {
     expect(endpoints?.some((e) => e.path === '/generate-crop')).toBe(true)
 
     const f = field({ name: 'hero', crops: [] }) as unknown as TestGroupField
-    expect(f.admin?.components?.Field?.clientProps?.generateCropEndpoint).toBe(
-      '/api/files/generate-crop',
-    )
+    expect(f.admin?.components?.Field?.clientProps?.mediaCollectionSlug).toBe('files')
   })
 
   test('plugin does not touch other collections', () => {
@@ -272,6 +271,17 @@ describe('createCropImage', () => {
 // ---------------------------------------------------------------------------
 // Unit tests – buildCropRequests
 // ---------------------------------------------------------------------------
+
+describe('generateCropEndpoint', () => {
+  test('uses a custom API route', () => {
+    expect(generateCropEndpoint('/cms-api', 'media')).toBe('/cms-api/media/generate-crop')
+  })
+
+  test('falls back to /api when no API route is configured', () => {
+    expect(generateCropEndpoint(undefined, 'files')).toBe('/api/files/generate-crop')
+    expect(generateCropEndpoint('', 'files')).toBe('/api/files/generate-crop')
+  })
+})
 
 describe('buildCropRequests', () => {
   const coords = { x: 10, y: 20, width: 80, height: 60 }
@@ -1128,7 +1138,12 @@ describe('resolveMediaCrop – multi-size compound keys', () => {
 
   test('does not mutate the original media doc', () => {
     const doc = { ...mediaDoc }
-    resolveMediaCrop({ generatedUrls: { 'card.lg': '/x.webp' }, image: doc }, 'card', undefined, 'lg')
+    resolveMediaCrop(
+      { generatedUrls: { 'card.lg': '/x.webp' }, image: doc },
+      'card',
+      undefined,
+      'lg',
+    )
     expect(doc.url).toBe('/media/photo.webp')
   })
 })
@@ -1194,7 +1209,7 @@ describe('makeGenerateCropHandler – compound keys and onCropGenerated', () => 
     expect([undefined, 200]).toContain(res.status)
     const body = (await res.json()) as Record<string, unknown>
     expect(typeof body['url']).toBe('string')
-    expect((body['url'] as string)).toMatch(/card\.desktop/)
+    expect(body['url'] as string).toMatch(/card\.desktop/)
   })
 
   test('cleanup is isolated per compound slot (card.lg vs card.md)', async () => {
@@ -1246,7 +1261,9 @@ describe('makeGenerateCropHandler – compound keys and onCropGenerated', () => 
   })
 
   test('onCropGenerated is called with correct context and its URL is returned', async () => {
-    const onCropGenerated = vi.fn().mockResolvedValueOnce({ url: 'https://cdn.example.com/crop.webp' })
+    const onCropGenerated = vi
+      .fn()
+      .mockResolvedValueOnce({ url: 'https://cdn.example.com/crop.webp' })
     const handler = makeGenerateCropHandler(mediaDir, 'media', onCropGenerated)
 
     const res = await callHandler(

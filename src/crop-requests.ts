@@ -1,5 +1,12 @@
 import type { CropData, CropDefinition, ImageFormat } from './types.js'
 
+export function generateCropEndpoint(
+  apiRoute: string | undefined,
+  mediaCollectionSlug: string,
+): string {
+  return `${apiRoute || '/api'}/${mediaCollectionSlug}/generate-crop`
+}
+
 export type CropRequest = {
   key: string
   body: {

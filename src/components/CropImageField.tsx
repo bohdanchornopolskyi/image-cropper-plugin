@@ -3,6 +3,7 @@
 import { Button, FieldDescription, useConfig } from '@payloadcms/ui'
 
 import type { CropDefinition, StaticDescription, StaticLabel } from '../types.js'
+import { generateCropEndpoint } from '../crop-requests.js'
 import { usePluginTranslation } from './usePluginTranslation.js'
 import { useResolveLabel } from './useResolveLabel.js'
 import { CropModal } from './CropModal.js'
@@ -18,7 +19,6 @@ type Props = {
   fieldLabel?: StaticLabel
   focalPoint?: boolean
   mediaCollectionSlug?: string
-  generateCropEndpoint?: string
   readOnly?: boolean
 }
 
@@ -29,7 +29,6 @@ export function CropImageField({
   fieldLabel,
   focalPoint = true,
   mediaCollectionSlug = 'media',
-  generateCropEndpoint,
   readOnly,
 }: Props) {
   const { config } = useConfig()
@@ -37,7 +36,7 @@ export function CropImageField({
   const t = usePluginTranslation()
   const apiRoute = config.routes.api || '/api'
   const resolvedFieldLabel = resolveL(fieldLabel ?? 'Image')
-  const endpoint = generateCropEndpoint ?? `${apiRoute}/${mediaCollectionSlug}/generate-crop`
+  const endpoint = generateCropEndpoint(apiRoute, mediaCollectionSlug)
 
   const {
     media,
