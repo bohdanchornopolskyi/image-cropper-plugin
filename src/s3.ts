@@ -4,35 +4,31 @@ import type { CropStorage, OnCropGeneratedContext, S3CropConfig } from './types.
 
 const DEFAULT_CACHE_CONTROL = 'public, max-age=31536000, immutable'
 
-let cachedClient: S3Client | undefined
-
-async function getClient(config: S3CropConfig): Promise<S3Client> {
-  if (cachedClient) {
-    return cachedClient
-  }
-  const { S3Client } = await import('@aws-sdk/client-s3')
-  cachedClient = new S3Client({
-    credentials: config.config.credentials,
-    endpoint: config.config.endpoint,
-    forcePathStyle: config.config.forcePathStyle,
-    region: config.config.region,
-  })
-  return cachedClient
-}
-
 function resolveKey(filename: string, prefix?: string): string {
   return prefix ? `${prefix.replace(/\/$/, '')}/${filename}` : filename
 }
 
 export function makeS3CropStorage(config: S3CropConfig): CropStorage {
+  let client: Promise<S3Client> | undefined
+  const getClient = () =>
+    (client ??= import('@aws-sdk/client-s3').then(
+      ({ S3Client }) =>
+        new S3Client({
+          credentials: config.config.credentials,
+          endpoint: config.config.endpoint,
+          forcePathStyle: config.config.forcePathStyle,
+          region: config.config.region,
+        }),
+    ))
+
   return {
     async upload(ctx: OnCropGeneratedContext) {
       const { PutObjectCommand } = await import('@aws-sdk/client-s3')
-      const client = await getClient(config)
+      const s3 = await getClient()
       const key = resolveKey(ctx.filename, config.prefix)
       const contentType =
         ctx.format === 'jpeg' ? 'image/jpeg' : ctx.format === 'png' ? 'image/png' : 'image/webp'
-      await client.send(
+      await s3.send(
         new PutObjectCommand({
           ACL: config.acl,
           Body: ctx.buffer,
@@ -47,25 +43,21 @@ export function makeS3CropStorage(config: S3CropConfig): CropStorage {
 
     async deleteCropsByBase(filenameBase: string) {
       const { DeleteObjectCommand, ListObjectsV2Command } = await import('@aws-sdk/client-s3')
-      const client = await getClient(config)
-      const rawPrefix = `${filenameBase}-crop-`
-      const listPrefix = config.prefix
-        ? `${config.prefix.replace(/\/$/, '')}/${rawPrefix}`
-        : rawPrefix
+      const s3 = await getClient()
+      const Prefix = resolveKey(`${filenameBase}-crop-`, config.prefix)
 
-      const list = await client.send(
-        new ListObjectsV2Command({ Bucket: config.bucket, Prefix: listPrefix }),
-      )
-
-      if (!list.Contents?.length) {
-        return
-      }
-
-      await Promise.all(
-        list.Contents.map(({ Key }) =>
-          client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: Key! })),
-        ),
-      )
+      let ContinuationToken: string | undefined
+      do {
+        const page = await s3.send(
+          new ListObjectsV2Command({ Bucket: config.bucket, ContinuationToken, Prefix }),
+        )
+        const keys = (page.Contents ?? []).flatMap(({ Key }) => (Key ? [Key] : []))
+        // Single-object deletes: DeleteObjects needs checksums some S3-compatible providers reject.
+        await Promise.all(
+          keys.map((Key) => s3.send(new DeleteObjectCommand({ Bucket: config.bucket, Key }))),
+        )
+        ContinuationToken = page.IsTruncated ? page.NextContinuationToken : undefined
+      } while (ContinuationToken)
     },
   }
 }
