@@ -1,4 +1,4 @@
-import type { Config, FieldHook, Validate } from 'payload'
+import type { Config, FieldHook, PayloadRequest, Validate } from 'payload'
 
 import { ValidationError } from 'payload'
 
@@ -76,6 +76,44 @@ function relationId(v: unknown): null | number | string {
   return isRecord(v) && (typeof v.id === 'string' || typeof v.id === 'number') ? v.id : null
 }
 
+const LOOKUPS_KEY = 'payload-plugin-image-cropper:media'
+
+type Lookups = { byId: Map<string, Promise<null | SourceMedia>>; tail: Promise<unknown> }
+
+/**
+ * Media lookups for one request run one at a time and are shared per media document: crop
+ * fields' hooks run in parallel, and parallel queries that open a MongoDB transaction fail.
+ */
+function findMedia(
+  req: PayloadRequest,
+  mediaSlug: string,
+  id: number | string,
+  overrideAccess: boolean | undefined,
+): Promise<null | SourceMedia> {
+  const lookups = ((req.context[LOOKUPS_KEY] as Lookups | undefined) ??= {
+    byId: new Map(),
+    tail: Promise.resolve(),
+  })
+  const key = `${mediaSlug}:${String(id)}`
+  let lookup = lookups.byId.get(key)
+  if (!lookup) {
+    lookup = lookups.tail.then(
+      () =>
+        req.payload.findByID({
+          id,
+          collection: mediaSlug,
+          depth: 0,
+          disableErrors: true,
+          overrideAccess,
+          req,
+        }) as Promise<null | SourceMedia>,
+    )
+    lookups.byId.set(key, lookup)
+    lookups.tail = lookup.catch(() => null)
+  }
+  return lookup
+}
+
 /**
  * `beforeChange` hook for the `generatedUrls` sub-field. The stored URLs are server-owned:
  * a crop is rendered when its coordinates or the source image changed, or its URL is
@@ -134,9 +172,7 @@ export function makeGenerateCropsHook(
       throw fail(`cropImagePlugin is not configured for the "${mediaSlug}" collection`)
     }
 
-    const media = (await req.payload
-      .findByID({ id: imageId, collection: mediaSlug, depth: 0, overrideAccess, req })
-      .catch(() => null)) as null | SourceMedia
+    const media = await findMedia(req, mediaSlug, imageId, overrideAccess)
     if (!media) {
       throw fail('Media not found')
     }
