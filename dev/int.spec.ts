@@ -16,7 +16,7 @@ import { cropTargets } from '../src/crop-targets.js'
 import { makeValidateCropData } from '../src/field-hooks.js'
 import { generateCrops } from '../src/generate.js'
 import { makeDeleteOrphanedCrops } from '../src/hook.js'
-import { createCropImage, cropImageField, cropImagePlugin } from '../src/index.js'
+import { createCropImage, cropImageField, cropImagePlugin, regenerateCrops } from '../src/index.js'
 import { makeCallbackCropStorage, makeLocalCropStorage } from '../src/storage.js'
 import { getCropSrcSet, getCropUrl, resolveMediaCrop } from '../src/utilities.js'
 
@@ -1163,6 +1163,48 @@ describe('Payload integration', () => {
           ],
         },
       })
+    })
+
+    test('regenerateCrops re-renders stored crops to match the current definitions', async () => {
+      const media = await createMedia('regenerate.png')
+      const cardImage = {
+        cropData: { card: { height: 50, width: 100, x: 0, y: 0 } },
+        image: media.id,
+      }
+      const post = await payload.create({ collection: 'posts', data: { cardImage } })
+      // As if saved when the crop had a single, different size.
+      await payload.db.updateOne({
+        id: post.id,
+        collection: 'posts',
+        data: { cardImage: { ...cardImage, generatedUrls: { 'card.lg': '/media/old.webp' } } },
+      })
+
+      const brokenMedia = await createMedia('regenerate-broken.png')
+      const broken = await payload.create({
+        collection: 'posts',
+        data: { cardImage: { ...cardImage, image: brokenMedia.id } },
+      })
+      await fs.promises.unlink(path.join(mediaDir, brokenMedia.filename!))
+      const withoutCrops = await payload.create({ collection: 'posts', data: {} })
+
+      const result = await regenerateCrops({
+        batchSize: 2,
+        collection: 'posts',
+        field: 'cardImage',
+        payload,
+      })
+
+      const urls = (await payload.findByID({ id: post.id, collection: 'posts' })).cardImage
+        ?.generatedUrls as Record<string, string>
+      expect(Object.keys(urls).sort()).toEqual(['card.lg', 'card.md', 'card.sm'])
+      expect(urls['card.lg']).not.toBe('/media/old.webp')
+      expect(Object.values(urls).every(onDisk)).toBe(true)
+      expect(result.failed.map((f) => f.id)).toEqual([broken.id])
+      expect(result.failed[0]?.message).toMatch(/cardImage\.cropData/)
+      expect(result.skipped).toBeGreaterThanOrEqual(1)
+      expect(result.regenerated).toBeGreaterThanOrEqual(1)
+      await payload.delete({ id: withoutCrops.id, collection: 'posts' })
+      await payload.delete({ id: broken.id, collection: 'posts' })
     })
 
     test('rejects coordinates outside the image', async () => {

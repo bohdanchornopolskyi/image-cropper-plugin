@@ -10,6 +10,7 @@ import { makeS3CropStorage } from './s3.js'
 import { makeCallbackCropStorage, makeLocalCropStorage } from './storage.js'
 import { de as pluginTranslationsDe, en as pluginTranslationsEn } from './translations/index.js'
 
+export { regenerateCrops, type RegenerateCropsResult } from './regenerate.js'
 export type {
   CropCoords,
   CropData,

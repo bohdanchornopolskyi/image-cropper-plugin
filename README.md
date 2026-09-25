@@ -429,6 +429,22 @@ function cardImageLoader({ width }) {
 />
 ```
 
+## Regenerating crops
+
+Crops are only rendered again when their coordinates or source image change. After you change a crop definition, for example by adding a size or switching the format, existing documents keep their old files until you regenerate them. `regenerateCrops` renders every stored crop of a field again from its saved coordinates:
+
+```ts
+import { getPayload } from 'payload'
+import config from '@payload-config'
+import { regenerateCrops } from 'payload-plugin-image-cropper'
+
+const payload = await getPayload({ config })
+const result = await regenerateCrops({ payload, collection: 'posts', field: 'cardImage' })
+// → { regenerated: 42, skipped: 3, failed: [{ id: '…', message: '…' }] }
+```
+
+Run it from a script, or from the `up` function of a Payload migration so it runs once per environment. It saves each document through the Local API in batches of `batchSize` (default 20), so the collection's own hooks run as they would on any other update. Documents without an image or crop coordinates are skipped. A document whose crops fail is reported in `failed` and the run continues. For a crop field inside named groups, pass a dot path such as `'hero.image'`. Fields inside arrays and blocks are not supported.
+
 ## Data shape
 
 `cropImageField` stores a group with three sub-fields on the document:

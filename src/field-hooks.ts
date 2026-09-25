@@ -12,6 +12,9 @@ import { resolveLabel } from './utilities.js'
 
 const RUNTIME_KEY = 'payload-plugin-image-cropper'
 
+/** `req.context` flag that makes the hook render every crop again, set by `regenerateCrops`. */
+export const REGENERATE_CONTEXT_KEY = 'payload-plugin-image-cropper:regenerate'
+
 type PluginT = (
   key: `plugin-image-cropper:${PluginTranslationKey}`,
   opts?: Record<string, unknown>,
@@ -138,7 +141,8 @@ function findMedia(
 /**
  * `beforeChange` hook for the `generatedUrls` sub-field. The stored URLs are server-owned:
  * a crop is rendered when its coordinates or the source image changed, or its URL is
- * missing, and every other URL is carried over from the previous document.
+ * missing, and every other URL is carried over from the previous document. With
+ * `REGENERATE_CONTEXT_KEY` in `req.context`, every crop is rendered again.
  */
 export function makeGenerateCropsHook(
   cropDefinitions: CropDefinition[],
@@ -156,8 +160,9 @@ export function makeGenerateCropsHook(
     const cropData = cropDataRaw as CropData
     const sameImage = String(relationId(previous.image)) === String(imageId)
     const prevCropData = (isRecord(previous.cropData) ? previous.cropData : {}) as CropData
+    const regenerate = req.context[REGENERATE_CONTEXT_KEY] === true
     const prevUrls = (
-      sameImage && isRecord(previous.generatedUrls) ? previous.generatedUrls : {}
+      !regenerate && sameImage && isRecord(previous.generatedUrls) ? previous.generatedUrls : {}
     ) as GeneratedUrls
 
     const urls: GeneratedUrls = {}
