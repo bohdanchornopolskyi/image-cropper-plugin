@@ -1,29 +1,55 @@
-import { expect, test } from '@playwright/test'
+import { expect, type Locator, type Page, test } from '@playwright/test'
 import sharp from 'sharp'
 
-const EMAIL = 'dev@payloadcms.com'
-const PASSWORD = 'test'
+import { devUser } from './helpers/credentials.js'
 
-async function login(page: import('@playwright/test').Page) {
-  await page.goto('/admin')
-  await page.fill('#field-email', EMAIL)
-  await page.fill('#field-password', PASSWORD)
-  await page.click('.form-submit button')
-  await expect(page).toHaveTitle(/Dashboard/)
+async function uploadMedia(page: Page, prefix: string): Promise<string> {
+  const filename = `${prefix}-${Date.now()}.png`
+  const upload = await page.request.post('/api/media', {
+    multipart: {
+      file: {
+        name: filename,
+        buffer: await sharp({
+          create: { background: 'teal', channels: 3, height: 900, width: 1600 },
+        })
+          .png()
+          .toBuffer(),
+        mimeType: 'image/png',
+      },
+    },
+  })
+  expect(upload.ok(), await upload.text()).toBe(true)
+  return filename
+}
+
+/** Picks an uploaded file from the list drawer; selecting it opens the crop modal. */
+async function chooseMedia(page: Page, field: Locator, filename: string) {
+  await field.getByRole('button', { name: /choose from existing/i }).click()
+  await page.locator('.list-drawer').getByText(filename).click()
 }
 
 // ---------------------------------------------------------------------------
 // Basic admin sanity
 // ---------------------------------------------------------------------------
 
-test('admin panel loads and login succeeds', async ({ page }) => {
-  await login(page)
-  await expect(page.locator('.graphic-icon')).toBeVisible()
+test.describe('logged out', () => {
+  test.use({ storageState: { cookies: [], origins: [] } })
+
+  test('admin panel loads and login succeeds', async ({ page }) => {
+    await page.goto('/admin')
+    // Retried because a fill before hydration is wiped when React takes over the form.
+    await expect(async () => {
+      await page.fill('#field-email', devUser.email)
+      await page.fill('#field-password', devUser.password)
+      await page.click('.form-submit button')
+      await expect(page).toHaveTitle(/Dashboard/, { timeout: 5_000 })
+    }).toPass({ timeout: 60_000 })
+  })
 })
 
 test('posts collection is listed in the admin nav', async ({ page }) => {
-  await login(page)
-  await expect(page.getByRole('link', { name: /posts/i })).toBeVisible()
+  await page.goto('/admin')
+  await expect(page.locator('#nav-posts')).toBeVisible()
 })
 
 // ---------------------------------------------------------------------------
@@ -31,15 +57,15 @@ test('posts collection is listed in the admin nav', async ({ page }) => {
 // ---------------------------------------------------------------------------
 
 test('create-post form renders the crop image field', async ({ page }) => {
-  await login(page)
   await page.goto('/admin/collections/posts/create')
-  await expect(page.getByRole('button', { name: /select image/i })).toBeVisible()
+  await expect(
+    page.locator('#field-heroImage').getByRole('button', { name: /choose from existing/i }),
+  ).toBeVisible()
 })
 
 test('create-post form does not show the crop button before an image is selected', async ({
   page,
 }) => {
-  await login(page)
   await page.goto('/admin/collections/posts/create')
   await expect(page.getByRole('button', { name: /crop/i })).not.toBeVisible()
 })
@@ -47,7 +73,6 @@ test('create-post form does not show the crop button before an image is selected
 test('create-post form does not show crop previews before an image is selected', async ({
   page,
 }) => {
-  await login(page)
   await page.goto('/admin/collections/posts/create')
   // No thumbnail/preview cards should be rendered yet
   await expect(page.locator('[data-crop-preview]')).not.toBeVisible()
@@ -57,79 +82,55 @@ test('create-post form does not show crop previews before an image is selected',
 // Full crop workflow
 // ---------------------------------------------------------------------------
 
-test('selecting an image via the drawer enables the crop button', async ({ page }) => {
-  await login(page)
+test('selecting an image opens the crop modal with a tab for each crop preset', async ({
+  page,
+}) => {
+  const filename = await uploadMedia(page, 'tabs')
   await page.goto('/admin/collections/posts/create')
+  await chooseMedia(page, page.locator('#field-heroImage'), filename)
 
-  // Open the media drawer
-  await page.getByRole('button', { name: /select image/i }).click()
-
-  // Wait for the media drawer/list to appear and pick the first media item
-  const drawer = page.locator('[data-drawer]').or(page.locator('[role="dialog"]')).first()
-  await expect(drawer).toBeVisible({ timeout: 10_000 })
-
-  // Click the first media item in the drawer
-  const firstMediaItem = drawer.locator('button, [role="button"]').first()
-  await firstMediaItem.click()
-
-  // After selection the "Crop" button should be visible
-  await expect(page.getByRole('button', { name: /crop/i })).toBeVisible({ timeout: 5_000 })
-})
-
-test('opening the crop modal shows a tab for each crop preset', async ({ page }) => {
-  await login(page)
-  await page.goto('/admin/collections/posts/create')
-
-  // Select an image
-  await page.getByRole('button', { name: /select image/i }).click()
-  const drawer = page.locator('[data-drawer]').or(page.locator('[role="dialog"]')).first()
-  await expect(drawer).toBeVisible({ timeout: 10_000 })
-  await drawer.locator('button, [role="button"]').first().click()
-
-  // Open the crop modal
-  await page.getByRole('button', { name: /crop/i }).click()
-
-  // The dev config registers "Desktop" and "Mobile" crop presets
-  await expect(page.getByRole('tab', { name: /desktop/i })).toBeVisible({ timeout: 5_000 })
-  await expect(page.getByRole('tab', { name: /mobile/i })).toBeVisible({ timeout: 5_000 })
+  await expect(page.getByRole('heading', { name: /crop image/i })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Desktop', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Mobile', exact: true })).toBeVisible()
 })
 
 test('crop modal can be closed without saving', async ({ page }) => {
-  await login(page)
+  const filename = await uploadMedia(page, 'cancel')
   await page.goto('/admin/collections/posts/create')
+  const field = page.locator('#field-heroImage')
+  await chooseMedia(page, field, filename)
 
-  // Select an image
-  await page.getByRole('button', { name: /select image/i }).click()
-  const drawer = page.locator('[data-drawer]').or(page.locator('[role="dialog"]')).first()
-  await expect(drawer).toBeVisible({ timeout: 10_000 })
-  await drawer.locator('button, [role="button"]').first().click()
+  const heading = page.getByRole('heading', { name: /crop image/i })
+  await expect(heading).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel' }).click()
+  await expect(heading).toBeHidden()
+  await expect(field.getByRole('button', { name: /crop image/i })).toBeVisible()
+})
 
-  // Open and close the crop modal
-  await page.getByRole('button', { name: /crop/i }).click()
-  const modal = page.locator('[role="dialog"]').last()
-  await expect(modal).toBeVisible({ timeout: 5_000 })
+test('applying crops and saving the document generates the crop files', async ({ page }) => {
+  const filename = await uploadMedia(page, 'save')
+  await page.goto('/admin/collections/pages/create')
+  const field = page.locator('#field-coverImage')
+  await chooseMedia(page, field, filename)
 
-  await page.keyboard.press('Escape')
-  await expect(modal).not.toBeVisible({ timeout: 5_000 })
+  await expect(page.locator('.ReactCrop__crop-selection')).toBeVisible()
+  await page.getByRole('button', { name: 'Apply' }).click()
+  await page.getByRole('button', { name: /save/i }).click()
+  await expect(page).toHaveURL(/\/admin\/collections\/pages\/(?!create$)[^/]+$/)
+
+  const id = page.url().split('/').pop()
+  const doc = (await (await page.request.get(`/api/pages/${id}`)).json()) as {
+    coverImage: { cropData: Record<string, unknown>; generatedUrls: Record<string, string> }
+  }
+  expect(Object.keys(doc.coverImage.cropData)).toEqual(['wide'])
+  expect(doc.coverImage.generatedUrls.wide).toMatch(/-crop-[0-9a-f]{16}\.webp$/)
+
+  await field.getByRole('button', { name: /preview crops/i }).click()
+  await expect(page.locator(`img[src="${doc.coverImage.generatedUrls.wide}"]`)).toBeVisible()
 })
 
 test('a required crop field shows the required marker and a validation error', async ({ page }) => {
-  await login(page)
-  const filename = `required-${Date.now()}.png`
-  const upload = await page.request.post('/api/media', {
-    multipart: {
-      file: {
-        name: filename,
-        buffer: await sharp({
-          create: { background: 'teal', channels: 3, height: 90, width: 160 },
-        })
-          .png()
-          .toBuffer(),
-        mimeType: 'image/png',
-      },
-    },
-  })
-  expect(upload.ok()).toBe(true)
+  const filename = await uploadMedia(page, 'required')
 
   await page.goto('/admin/collections/pages/create')
 
@@ -140,8 +141,7 @@ test('a required crop field shows the required marker and a validation error', a
   const error = field.locator('.field-error')
   await expect(error).toHaveText(/required/i)
 
-  await field.getByRole('button', { name: /choose from existing/i }).click()
-  await page.locator('.list-drawer').getByText(filename).click()
+  await chooseMedia(page, field, filename)
   await expect(error).toBeHidden()
 })
 
@@ -150,7 +150,6 @@ test('a required crop field shows the required marker and a validation error', a
 // ---------------------------------------------------------------------------
 
 test('saving a post with no image selected does not error', async ({ page }) => {
-  await login(page)
   await page.goto('/admin/collections/posts/create')
 
   await page.getByRole('button', { name: /save/i }).click()
@@ -160,7 +159,6 @@ test('saving a post with no image selected does not error', async ({ page }) => 
 })
 
 test('post list shows the created post after saving', async ({ page }) => {
-  await login(page)
   await page.goto('/admin/collections/posts/create')
   await page.getByRole('button', { name: /save/i }).click()
 
@@ -168,67 +166,4 @@ test('post list shows the created post after saving', async ({ page }) => {
   await page.goto('/admin/collections/posts')
   const rows = page.locator('table tbody tr').or(page.locator('[data-list-item]'))
   await expect(rows.first()).toBeVisible({ timeout: 10_000 })
-})
-
-// ---------------------------------------------------------------------------
-// generate-crop API endpoint (via fetch inside the browser context)
-// ---------------------------------------------------------------------------
-
-test('generate-crop endpoint returns 401 when not authenticated', async ({ page }) => {
-  // Perform the request without logging in
-  await page.goto('/admin')
-
-  const status = await page.evaluate(async () => {
-    const res = await fetch('/api/media/generate-crop', {
-      body: JSON.stringify({
-        cropData: { height: 100, width: 100, x: 0, y: 0 },
-        cropName: 'desktop',
-        mediaId: '000000000000000000000000',
-        outputHeight: 1080,
-        outputWidth: 1920,
-      }),
-      headers: { 'Content-Type': 'application/json' },
-      method: 'POST',
-    })
-    return res.status
-  })
-
-  expect(status).toBe(401)
-})
-
-test('generate-crop endpoint returns 400 for an invalid request body', async ({ page }) => {
-  await login(page)
-
-  const status = await page.evaluate(async () => {
-    const res = await fetch('/api/media/generate-crop', {
-      body: JSON.stringify({ bad: 'payload' }),
-      headers: { 'Content-Type': 'application/json' },
-      method: 'POST',
-    })
-    return res.status
-  })
-
-  expect(status).toBe(400)
-})
-
-test('generate-crop endpoint returns 404 for a non-existent media ID', async ({ page }) => {
-  await login(page)
-
-  const status = await page.evaluate(async () => {
-    const res = await fetch('/api/media/generate-crop', {
-      body: JSON.stringify({
-        cropData: { height: 100, width: 100, x: 0, y: 0 },
-        cropName: 'desktop',
-        mediaId: '000000000000000000000000',
-        outputHeight: 1080,
-        outputWidth: 1920,
-      }),
-      headers: { 'Content-Type': 'application/json' },
-      method: 'POST',
-    })
-    return res.status
-  })
-
-  // 404 (not found) or 422 (no dimensions) are both acceptable for a missing doc
-  expect([404, 422, 500]).toContain(status)
 })

@@ -14,6 +14,8 @@ import { defineConfig, devices } from '@playwright/test'
 export default defineConfig({
   testDir: './dev',
   testMatch: '**/e2e.spec.{ts,js}',
+  /* The dev server compiles each admin route on its first request, which can take over 30s. */
+  timeout: 60_000,
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -25,10 +27,13 @@ export default defineConfig({
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
+  /* One login shared by every test: parallel logins as the same user race on its session list. */
   projects: [
+    { name: 'setup', testMatch: 'dev/auth.setup.ts' },
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      dependencies: ['setup'],
+      use: { ...devices['Desktop Chrome'], storageState: 'playwright/.auth/user.json' },
     },
   ],
   use: {
