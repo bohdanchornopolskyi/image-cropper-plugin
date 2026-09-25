@@ -1,5 +1,6 @@
 import type { PayloadHandler } from 'payload'
 
+import { createHash } from 'crypto'
 import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
@@ -63,16 +64,16 @@ function applyFormat(pipeline: sharp.Sharp, format: ImageFormat, quality: number
 }
 
 /**
- * Resolves the source image as a Sharp-compatible input.
+ * Reads the source image bytes.
  * Tries the local filesystem first; falls back to fetching from the media URL
  * when the file is not present on disk (e.g. cloud storage with disableLocalStorage: true).
  */
 async function resolveSourceInput(
   localPath: string,
   mediaUrl: string | undefined,
-): Promise<Buffer | null | string> {
+): Promise<Buffer | null> {
   if (fs.existsSync(localPath)) {
-    return localPath
+    return fs.promises.readFile(localPath)
   }
   if (typeof mediaUrl === 'string' && /^https?:\/\//.test(mediaUrl)) {
     const res = await fetch(mediaUrl)
@@ -165,9 +166,12 @@ export function makeGenerateCropHandler(
     )
 
     const base = path.basename(safeFilename, path.extname(safeFilename))
-    const tag = `${Math.round(cropData.x)}-${Math.round(cropData.y)}-${Math.round(cropData.width)}x${Math.round(cropData.height)}`
-    const ext = format === 'jpeg' ? 'jpg' : format
-    const outputFilename = `${base}-crop-${cropName}-${tag}-${outputWidth}x${outputHeight}.${ext}`
+    const hash = createHash('sha256')
+      .update(sourceInput)
+      .update(JSON.stringify([cropData, outputWidth, outputHeight, format, quality]))
+      .digest('hex')
+      .slice(0, 16)
+    const outputFilename = `${base}-crop-${hash}.${format === 'jpeg' ? 'jpg' : format}`
 
     try {
       const pipeline = sharp(sourceInput)
@@ -182,7 +186,6 @@ export function makeGenerateCropHandler(
         filename: outputFilename,
         format,
         mediaId,
-        replaces: `${base}-crop-${cropName}-`,
       })
       return Response.json({ url: result.url })
     } catch (e) {

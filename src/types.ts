@@ -89,7 +89,7 @@ export type OnCropGeneratedContext = {
   buffer: Buffer
   /** Compound key that will be stored in generatedUrls (e.g. `"card.desktop"`). */
   cropName: string
-  /** Suggested output filename (e.g. `"photo-crop-card.desktop-5-5-90x90-1200x675.webp"`). */
+  /** Output filename: the source name plus a hash of the crop's inputs (e.g. `"photo-crop-3f2a9c01d4e5b6a7.webp"`). */
   filename: string
   /** Output format chosen for this crop. */
   format: ImageFormat
@@ -100,8 +100,7 @@ export type OnCropGeneratedContext = {
 /** Internal storage adapter that writes and removes crop files: local disk, S3 or `onCropGenerated`. */
 export type CropStorage = {
   deleteCropsByBase: (filenameBase: string) => Promise<void>
-  /** `replaces` is the filename prefix of crops this upload supersedes. */
-  upload: (ctx: { replaces?: string } & OnCropGeneratedContext) => Promise<{ url: string }>
+  upload: (ctx: OnCropGeneratedContext) => Promise<{ url: string }>
 }
 
 /**
@@ -122,8 +121,8 @@ export type S3CropConfig = {
   /** S3 bucket name. */
   bucket: string
   /**
-   * `Cache-Control` header written on every crop file. Crop filenames encode the crop
-   * region and output size, so a re-crop is always a new key and can be cached forever.
+   * `Cache-Control` header written on every crop file. Crop filenames are a hash of the
+   * source file and every crop setting, so a re-crop is always a new key and can be cached forever.
    *
    * @default 'public, max-age=31536000, immutable'
    */

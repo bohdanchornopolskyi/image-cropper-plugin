@@ -713,25 +713,24 @@ describe('makeLocalCropStorage', () => {
     filename,
     format: 'webp' as const,
     mediaId: '1',
-    replaces: 'photo-crop-hero-',
   })
 
-  test('writes the crop, returns its URL, and removes the crops it replaces', async () => {
-    await fs.promises.writeFile(path.join(mediaDir, 'photo-crop-hero-old.webp'), '')
+  test('writes the crop, returns its URL, and leaves other crops alone', async () => {
+    await fs.promises.writeFile(path.join(mediaDir, 'photo-crop-old.webp'), '')
 
     const storage = makeLocalCropStorage(mediaDir)
-    const result = await storage.upload(upload('photo-crop-hero-new.webp'))
+    const result = await storage.upload(upload('photo-crop-new.webp'))
 
-    expect(result.url).toBe(`/${path.basename(mediaDir)}/photo-crop-hero-new.webp`)
-    expect(fs.readdirSync(mediaDir).sort()).toEqual(['photo-crop-hero-new.webp'])
+    expect(result.url).toBe(`/${path.basename(mediaDir)}/photo-crop-new.webp`)
+    expect(fs.readdirSync(mediaDir).sort()).toEqual(['photo-crop-new.webp', 'photo-crop-old.webp'])
   })
 
   test('keeps an existing file with the same name untouched', async () => {
     const storage = makeLocalCropStorage(mediaDir)
-    await storage.upload(upload('photo-crop-hero-a.webp', 'first'))
-    await storage.upload(upload('photo-crop-hero-a.webp', 'second'))
+    await storage.upload(upload('photo-crop-a.webp', 'first'))
+    await storage.upload(upload('photo-crop-a.webp', 'second'))
 
-    expect(fs.readFileSync(path.join(mediaDir, 'photo-crop-hero-a.webp'), 'utf8')).toBe('first')
+    expect(fs.readFileSync(path.join(mediaDir, 'photo-crop-a.webp'), 'utf8')).toBe('first')
   })
 
   test('deletes every crop of a source and nothing else', async () => {
@@ -978,42 +977,58 @@ describe('makeGenerateCropHandler (isolated)', () => {
     expect(firstMtime).toBe(secondMtime) // file was NOT rewritten
   })
 
-  test('deletes the old crop file when crop coords change (same slot)', async () => {
+  const cropRequest = (overrides: Record<string, unknown> = {}) =>
+    makeRequest({
+      cropData: { height: 50, width: 50, x: 0, y: 0 },
+      cropName: 'hero',
+      format: 'webp',
+      mediaId: '1',
+      outputHeight: 100,
+      outputWidth: 100,
+      ...overrides,
+    })
+
+  async function cropFile(handler: ReturnType<typeof makeGenerateCropHandler>, req: MockRequest) {
+    const body = (await (await callHandler(handler, req)).json()) as { url: string }
+    return path.join(mediaDir, path.basename(body.url))
+  }
+
+  test('keeps each crop file when two documents crop the same media differently', async () => {
     const handler = makeGenerateCropHandler(mediaDir, 'media')
-
-    // First crop
-    const first = (await (
-      await callHandler(
-        handler,
-        makeRequest({
-          cropData: { height: 50, width: 50, x: 0, y: 0 },
-          cropName: 'replace-me',
-          format: 'webp',
-          mediaId: '1',
-          outputHeight: 100,
-          outputWidth: 100,
-        }),
-      )
-    ).json()) as Record<string, unknown>
-
-    const firstFile = path.join(mediaDir, path.basename(first['url'] as string))
-    expect(fs.existsSync(firstFile)).toBe(true)
-
-    // Second crop with different coords for the same slot
-    await callHandler(
+    const first = await cropFile(handler, cropRequest())
+    const second = await cropFile(
       handler,
-      makeRequest({
-        cropData: { height: 50, width: 50, x: 25, y: 25 }, // different region
-        cropName: 'replace-me',
-        format: 'webp',
-        mediaId: '1',
-        outputHeight: 100,
-        outputWidth: 100,
-      }),
+      cropRequest({ cropData: { height: 50, width: 50, x: 25, y: 25 } }),
     )
 
-    // The old file should have been removed
-    expect(fs.existsSync(firstFile)).toBe(false)
+    expect(first).not.toBe(second)
+    expect(fs.existsSync(first)).toBe(true)
+    expect(fs.existsSync(second)).toBe(true)
+  })
+
+  test('generating one crop never touches a crop whose name it prefixes', async () => {
+    const handler = makeGenerateCropHandler(mediaDir, 'media')
+    const mobile = await cropFile(
+      handler,
+      cropRequest({ cropData: { height: 40, width: 40, x: 5, y: 5 }, cropName: 'hero-mobile' }),
+    )
+    await cropFile(handler, cropRequest({ cropData: { height: 40, width: 40, x: 50, y: 5 } }))
+
+    expect(fs.existsSync(mobile)).toBe(true)
+  })
+
+  test('a quality, format or sub-percent coordinate change writes a new file', async () => {
+    const handler = makeGenerateCropHandler(mediaDir, 'media')
+    const files = await Promise.all(
+      [
+        cropRequest(),
+        cropRequest({ quality: 50 }),
+        cropRequest({ format: 'jpeg' }),
+        cropRequest({ cropData: { height: 50, width: 50, x: 0.4, y: 0 } }),
+      ].map((req) => cropFile(handler, req)),
+    )
+
+    expect(new Set(files).size).toBe(4)
   })
 
   test('returns 404 when the media document has no filename', async () => {
@@ -1365,56 +1380,7 @@ describe('makeGenerateCropHandler – compound keys and onCropGenerated', () => 
     )
     expect([undefined, 200]).toContain(res.status)
     const body = (await res.json()) as Record<string, unknown>
-    expect(typeof body['url']).toBe('string')
-    expect(body['url'] as string).toMatch(/card\.desktop/)
-  })
-
-  test('cleanup is isolated per compound slot (card.lg vs card.md)', async () => {
-    const handler = makeGenerateCropHandler(mediaDir, 'media')
-
-    const lgRes = await callHandler(
-      handler,
-      makeRequest({
-        cropData: { height: 100, width: 100, x: 0, y: 0 },
-        cropName: 'card.lg',
-        format: 'webp',
-        mediaId: '1',
-        outputHeight: 675,
-        outputWidth: 1200,
-      }),
-    )
-    const lgUrl = ((await lgRes.json()) as Record<string, unknown>)['url'] as string
-    const lgFile = path.join(mediaDir, path.basename(lgUrl))
-
-    const mdRes = await callHandler(
-      handler,
-      makeRequest({
-        cropData: { height: 100, width: 100, x: 0, y: 0 },
-        cropName: 'card.md',
-        format: 'webp',
-        mediaId: '1',
-        outputHeight: 432,
-        outputWidth: 768,
-      }),
-    )
-    const mdUrl = ((await mdRes.json()) as Record<string, unknown>)['url'] as string
-    const mdFile = path.join(mediaDir, path.basename(mdUrl))
-
-    // Re-crop card.lg with different coords — should delete old lg file
-    await callHandler(
-      handler,
-      makeRequest({
-        cropData: { height: 80, width: 80, x: 10, y: 10 },
-        cropName: 'card.lg',
-        format: 'webp',
-        mediaId: '1',
-        outputHeight: 675,
-        outputWidth: 1200,
-      }),
-    )
-
-    expect(fs.existsSync(lgFile)).toBe(false) // old lg deleted
-    expect(fs.existsSync(mdFile)).toBe(true) // md untouched
+    expect(fs.existsSync(path.join(mediaDir, path.basename(body['url'] as string)))).toBe(true)
   })
 
   test('onCropGenerated is called with correct context and its URL is returned', async () => {

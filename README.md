@@ -208,7 +208,7 @@ Generated URLs are stored under compound keys: `card.lg`, `card.md`, `card.sm`.
 | `config.forcePathStyle` | `boolean` | Force path-style URLs. |
 | `generateUrl` | `(args: { filename, prefix? }) => string` | **Required.** Build the public URL for a crop file. Same logic as `generateFileURL` in `s3Storage`. |
 | `acl` | `string` | Object ACL, e.g. `'public-read'`. |
-| `cacheControl` | `string` | `Cache-Control` header for crop objects. Defaults to `'public, max-age=31536000, immutable'` — safe because crop filenames encode the crop region and output size, so a re-crop writes a new key. |
+| `cacheControl` | `string` | `Cache-Control` header for crop objects. Defaults to `'public, max-age=31536000, immutable'` — safe because each crop filename is a hash of the source file and every crop setting, so a re-crop writes a new key. |
 | `prefix` | `string` | Key prefix inside the bucket. Mirrors `prefix` in `s3Storage` collection config. |
 
 ### `cropImageField` options
@@ -322,11 +322,11 @@ const label = resolveLabel({ en: 'Hero Image', de: 'Heldenbild' }, 'de') // → 
 
 // URL for a named crop
 const url = getCropUrl(post.heroImage, 'desktop')
-// → '/media/my-photo-crop-desktop-5-10-90x80-1920x1080.webp'
+// → '/media/my-photo-crop-3f2a9c01d4e5b6a7.webp'
 
 // Full media object with the crop URL injected as `url`
 const media = resolveMediaCrop(post.heroImage, 'mobile')
-// → { id: '...', filename: '...', url: '/media/...mobile....webp', ... }
+// → { id: '...', filename: '...', url: '/media/my-photo-crop-....webp', ... }
 ```
 
 Both helpers are safe to call with `null` or `undefined` — they return `''` / `null` respectively. When no generated crop exists yet, `getCropUrl` falls back to the original `image.url` so the field degrades gracefully before an editor has cropped the image.
@@ -423,8 +423,8 @@ function cardImageLoader({ width }) {
       mobile:  { x: 20, y: 0, width: 60, height: 100 },
     },
     generatedUrls: {
-      desktop: '/media/photo-crop-desktop-5-10-90x80-1920x1080.webp',
-      mobile:  '/media/photo-crop-mobile-20-0-60x100-828x1035.webp',
+      desktop: '/media/photo-crop-3f2a9c01d4e5b6a7.webp',
+      mobile:  '/media/photo-crop-81d04be29a6c7f35.webp',
     },
   }
 }
@@ -439,9 +439,9 @@ function cardImageLoader({ width }) {
       card: { x: 0, y: 12, width: 100, height: 75 },
     },
     generatedUrls: {
-      'card.lg': '/media/photo-crop-card-0-12-100x75-1200x675.webp',
-      'card.md': '/media/photo-crop-card-0-12-100x75-768x432.webp',
-      'card.sm': '/media/photo-crop-card-0-12-100x75-390x219.webp',
+      'card.lg': '/media/photo-crop-0c9e1f7a2b3d4e56.webp',
+      'card.md': '/media/photo-crop-7a45c2e9d18b0f63.webp',
+      'card.sm': '/media/photo-crop-e2b8f14c6d09a735.webp',
     },
   }
 }
