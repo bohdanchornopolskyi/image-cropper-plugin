@@ -7,8 +7,10 @@ export const en = {
   createNew: 'Create new',
   cropFailed: 'Could not generate crops: {{error}}',
   cropImage: 'Crop Image',
+  cropNotSet: 'not set',
   cropOutsideImage: 'Crop "{{name}}" must lie inside the image',
   cropsAndSizes: 'Crops & Sizes',
+  cropSet: 'set',
   cropSource: 'Crop source',
   dragAndDropFile: 'or drag and drop a file',
   editCrops: 'Edit Crops',
@@ -18,6 +20,7 @@ export const en = {
   or: 'or',
   previewCropsAndSizes: 'Preview crops & sizes',
   remove: 'Remove',
+  resetToFocalPoint: 'Reset to focal point',
   sizeCount_one: '{{count}} size',
   sizeCount_other: '{{count}} sizes',
 }

@@ -7,8 +7,10 @@ export const de = {
   createNew: 'Neu erstellen',
   cropFailed: 'Ausschnitte konnten nicht generiert werden: {{error}}',
   cropImage: 'Bild zuschneiden',
+  cropNotSet: 'nicht festgelegt',
   cropOutsideImage: 'Ausschnitt „{{name}}“ muss innerhalb des Bildes liegen',
   cropsAndSizes: 'Ausschnitte & Größen',
+  cropSet: 'festgelegt',
   cropSource: 'Bild-Quelle',
   dragAndDropFile: 'oder Datei hier ablegen',
   editCrops: 'Ausschnitte bearbeiten',
@@ -18,6 +20,7 @@ export const de = {
   or: 'oder',
   previewCropsAndSizes: 'Vorschau: Ausschnitte & Größen',
   remove: 'Entfernen',
+  resetToFocalPoint: 'Auf Fokuspunkt zurücksetzen',
   sizeCount_one: '{{count}} Größe',
   sizeCount_other: '{{count}} Größen',
 }
