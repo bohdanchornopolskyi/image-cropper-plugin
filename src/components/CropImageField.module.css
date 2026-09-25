@@ -16,6 +16,15 @@
   color: var(--theme-elevation-400, #999);
 }
 
+.errorWrap {
+  position: relative;
+}
+
+.required {
+  margin-left: 4px;
+  color: var(--theme-error-500);
+}
+
 /* ── Filled state ──────────────────────────────────────────────────────────── */
 
 .fileRow {

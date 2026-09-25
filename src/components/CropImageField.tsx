@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, FieldDescription, useConfig } from '@payloadcms/ui'
+import { Button, FieldDescription, FieldError, useConfig } from '@payloadcms/ui'
 
 import type { CropDefinition, StaticDescription, StaticLabel } from '../types.js'
 
@@ -21,6 +21,7 @@ type Props = {
   mediaCollectionSlug?: string
   path: string
   readOnly?: boolean
+  required?: boolean
 }
 
 export function CropImageField({
@@ -31,6 +32,7 @@ export function CropImageField({
   mediaCollectionSlug = 'media',
   path,
   readOnly,
+  required = false,
 }: Props) {
   const { config } = useConfig()
   const resolveL = useResolveLabel()
@@ -58,15 +60,29 @@ export function CropImageField({
     remove,
     setModalOpen,
     setPreviewOpen,
+    showError,
     urls,
-  } = useCropImageField({ apiRoute, cropDefinitions, endpoint, mediaCollectionSlug, path })
+  } = useCropImageField({
+    apiRoute,
+    cropDefinitions,
+    endpoint,
+    mediaCollectionSlug,
+    path,
+    required,
+  })
 
   return (
-    <div className={styles.wrap}>
+    <div className={styles.wrap} id={`field-${path.replace(/\./g, '__')}`}>
       <div className={styles.labelWrap}>
-        <label className={styles.label}>{resolvedFieldLabel}</label>
+        <label className={styles.label}>
+          {resolvedFieldLabel}
+          {required && <span className={styles.required}>*</span>}
+        </label>
       </div>
       {fieldDescription ? <FieldDescription description={fieldDescription} path={path} /> : null}
+      <div className={styles.errorWrap}>
+        <FieldError path={`${path}.image`} showError={showError} />
+      </div>
 
       {!media ? (
         <div className="dropzone">

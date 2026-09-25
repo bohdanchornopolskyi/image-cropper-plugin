@@ -106,6 +106,17 @@ describe('cropImageField', () => {
     expect(field.admin?.components?.Field?.clientProps?.mediaCollectionSlug).toBe('files')
   })
 
+  test('required clientProp mirrors the field config', () => {
+    const required = cropImageField({
+      name: 'hero',
+      crops: [],
+      required: true,
+    }) as unknown as TestGroupField
+    const optional = cropImageField({ name: 'hero', crops: [] }) as unknown as TestGroupField
+    expect(required.admin?.components?.Field?.clientProps?.required).toBe(true)
+    expect(optional.admin?.components?.Field?.clientProps?.required).toBe(false)
+  })
+
   test('does not hardcode the crop endpoint into clientProps', () => {
     const field = cropImageField({ name: 'hero', crops: [] }) as unknown as TestGroupField
     expect(field.admin?.components?.Field?.clientProps).not.toHaveProperty('generateCropEndpoint')

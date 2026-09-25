@@ -115,6 +115,7 @@ export function cropImageField(config: CropImageFieldConfig): Field {
             fieldLabel: config.label ?? config.name,
             focalPoint: config.focalPoint ?? true,
             mediaCollectionSlug: mediaSlug,
+            required: config.required ?? false,
           },
           exportName: 'CropImageField',
           path: 'payload-plugin-image-cropper/client#CropImageField',

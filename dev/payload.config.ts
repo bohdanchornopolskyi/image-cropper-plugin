@@ -141,6 +141,19 @@ const buildConfigWithMemoryDB = async () => {
         ],
       },
       {
+        slug: 'pages',
+        fields: [
+          cropField({
+            name: 'coverImage',
+            crops: [
+              { name: 'wide', aspectRatio: 16 / 9, height: 1080, label: 'Wide', width: 1920 },
+            ],
+            label: 'Cover Image',
+            required: true,
+          }),
+        ],
+      },
+      {
         slug: 'media',
         fields: [],
         upload: {
