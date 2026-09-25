@@ -32,7 +32,6 @@ const buildConfigWithMemoryDB = async () => {
 
   const { field: cropField, plugin: cropPlugin } = createCropImage({
     mediaCollectionSlug: 'media',
-    mediaDir: path.resolve(dirname, 'media'),
     s3: {
       acl: 'public-read',
       bucket: process.env.DO_SPACES_BUCKET!,

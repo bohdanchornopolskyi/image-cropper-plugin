@@ -26,19 +26,23 @@ export type {
 
 export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugin {
   const mediaSlug = pluginConfig.mediaCollectionSlug ?? 'media'
-  const mediaDir = pluginConfig.mediaDir ?? path.join(process.cwd(), 'public/media')
-  const local = makeLocalCropStorage(mediaDir)
-  const storage = pluginConfig.s3
-    ? makeS3CropStorage(pluginConfig.s3)
-    : pluginConfig.onCropGenerated
-      ? makeCallbackCropStorage(pluginConfig.onCropGenerated, local)
-      : local
+  const s3Storage = pluginConfig.s3 ? makeS3CropStorage(pluginConfig.s3) : undefined
 
   return (incomingConfig: Config): Config => {
     const collections = (incomingConfig.collections ?? []).map((collection) => {
       if (collection.slug !== mediaSlug) {
         return collection
       }
+
+      const staticDir =
+        typeof collection.upload === 'object' ? collection.upload.staticDir : undefined
+      const mediaDir = path.resolve(pluginConfig.mediaDir ?? staticDir ?? collection.slug)
+      const local = makeLocalCropStorage(mediaDir)
+      const storage =
+        s3Storage ??
+        (pluginConfig.onCropGenerated
+          ? makeCallbackCropStorage(pluginConfig.onCropGenerated, local)
+          : local)
 
       return {
         ...collection,

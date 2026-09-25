@@ -166,9 +166,9 @@ export type CropImagePluginConfig = {
    */
   mediaCollectionSlug?: string
   /**
-   * Absolute path to the directory where source and crop files are stored.
-   * Must match the `staticDir` set on the upload collection.
-   * Defaults to `path.join(process.cwd(), 'public/media')`.
+   * Directory where source images are read from and crop files are written to.
+   * Relative paths resolve against `process.cwd()`.
+   * Defaults to the media collection's `upload.staticDir`.
    */
   mediaDir?: string
   /**

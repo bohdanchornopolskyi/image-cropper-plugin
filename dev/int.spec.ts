@@ -169,6 +169,49 @@ describe('cropImagePlugin', () => {
     expect(endpoints?.some((e) => e.path === '/generate-crop' && e.method === 'post')).toBe(true)
   })
 
+  describe('media directory', () => {
+    let dirs: string[]
+
+    beforeEach(async () => {
+      dirs = await Promise.all(
+        [0, 1].map(() => fs.promises.mkdtemp(path.join(os.tmpdir(), 'plugin-dir-test-'))),
+      )
+      await Promise.all(
+        dirs.map((dir) => fs.promises.writeFile(path.join(dir, 'photo-crop-a.webp'), '')),
+      )
+    })
+
+    afterEach(async () => {
+      await Promise.all(dirs.map((dir) => fs.promises.rm(dir, { force: true, recursive: true })))
+    })
+
+    async function deleteMediaWith(pluginOptions: { mediaDir?: string }, staticDir: string) {
+      const cfg = baseConfig()
+      cfg.collections![1] = { ...cfg.collections![1], upload: { staticDir } } as never
+      const media = cropImagePlugin(pluginOptions)(cfg).collections?.find((c) => c.slug === 'media')
+      const hook = media?.hooks?.afterDelete?.[0] as (arg: unknown) => Promise<void>
+      await hook({ doc: { filename: 'photo.jpg' } })
+    }
+
+    const cropExists = (dir: string) => fs.existsSync(path.join(dir, 'photo-crop-a.webp'))
+
+    test('defaults to the collection staticDir', async () => {
+      await deleteMediaWith({}, dirs[0])
+      expect(cropExists(dirs[0])).toBe(false)
+    })
+
+    test('resolves a relative staticDir against the working directory', async () => {
+      await deleteMediaWith({}, path.relative(process.cwd(), dirs[0]))
+      expect(cropExists(dirs[0])).toBe(false)
+    })
+
+    test('an explicit mediaDir wins over staticDir', async () => {
+      await deleteMediaWith({ mediaDir: dirs[1] }, dirs[0])
+      expect(cropExists(dirs[0])).toBe(true)
+      expect(cropExists(dirs[1])).toBe(false)
+    })
+  })
+
   test('adds afterDelete hook to the media collection', () => {
     const result = cropImagePlugin({ mediaCollectionSlug: 'media' })(
       baseConfig(),
