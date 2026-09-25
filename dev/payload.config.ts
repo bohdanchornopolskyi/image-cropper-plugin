@@ -22,7 +22,8 @@ const buildConfigWithMemoryDB = async () => {
   if (process.env.NODE_ENV === 'test') {
     const memoryDB = await MongoMemoryReplSet.create({
       replSet: {
-        count: 3,
+        // One member supports transactions without elections, which interrupt connections.
+        count: 1,
         dbName: 'payloadmemory',
       },
     })
