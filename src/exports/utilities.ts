@@ -1,1 +1,7 @@
-export { getCropUrl, getFocalPosition, resolveLabel, resolveMediaCrop } from '../utilities.js'
+export {
+  getCropSrcSet,
+  getCropUrl,
+  getFocalPosition,
+  resolveLabel,
+  resolveMediaCrop,
+} from '../utilities.js'

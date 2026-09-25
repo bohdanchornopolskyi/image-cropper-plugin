@@ -4,12 +4,13 @@ import path from 'path'
 
 import type { CropImageFieldConfig, CropImagePluginConfig } from './types.js'
 
-import { makeGenerateCropsHook, validateCropData, withCropRuntime } from './field-hooks.js'
+import { makeGenerateCropsHook, makeValidateCropData, withCropRuntime } from './field-hooks.js'
 import { makeDeleteOrphanedCrops } from './hook.js'
 import { makeS3CropStorage } from './s3.js'
 import { makeCallbackCropStorage, makeLocalCropStorage } from './storage.js'
 import { de as pluginTranslationsDe, en as pluginTranslationsEn } from './translations/index.js'
 
+export { regenerateCrops, type RegenerateCropsResult } from './regenerate.js'
 export type {
   CropCoords,
   CropData,
@@ -133,7 +134,7 @@ export function cropImageField(config: CropImageFieldConfig): Field {
       {
         name: 'cropData',
         type: 'json',
-        validate: validateCropData,
+        validate: makeValidateCropData(config.crops, config.requireAllCrops ?? false),
       },
       {
         name: 'generatedUrls',

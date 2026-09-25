@@ -13,12 +13,12 @@ import type { CropImageValue } from '../src/types.js'
 
 import { focalInCrop, initCrop } from '../src/crop-geometry.js'
 import { cropTargets } from '../src/crop-targets.js'
-import { validateCropData } from '../src/field-hooks.js'
+import { makeValidateCropData } from '../src/field-hooks.js'
 import { generateCrops } from '../src/generate.js'
 import { makeDeleteOrphanedCrops } from '../src/hook.js'
-import { createCropImage, cropImageField, cropImagePlugin } from '../src/index.js'
+import { createCropImage, cropImageField, cropImagePlugin, regenerateCrops } from '../src/index.js'
 import { makeCallbackCropStorage, makeLocalCropStorage } from '../src/storage.js'
-import { getCropUrl, resolveMediaCrop } from '../src/utilities.js'
+import { getCropSrcSet, getCropUrl, resolveMediaCrop } from '../src/utilities.js'
 
 /**
  * Minimal shape of the group field returned by cropImageField – typed locally
@@ -363,11 +363,19 @@ describe('cropTargets', () => {
 // Unit tests – validateCropData
 // ---------------------------------------------------------------------------
 
-describe('validateCropData', () => {
+describe('cropData validation', () => {
   const t = (key: string, opts?: Record<string, unknown>) =>
     `${key}${opts ? JSON.stringify(opts) : ''}`
-  const validate = (value: unknown) =>
-    (validateCropData as (v: unknown, o: unknown) => string | true)(value, { req: { t } })
+  const crops = [
+    { name: 'desktop', height: 1080, label: { de: 'Desktop DE', en: 'Desktop' }, width: 1920 },
+    { name: 'mobile', height: 1470, label: 'Mobile', width: 828 },
+  ]
+  const run = (requireAllCrops: boolean, value: unknown, image: unknown = null) =>
+    (makeValidateCropData(crops, requireAllCrops) as (v: unknown, o: unknown) => string | true)(
+      value,
+      { req: { i18n: { language: 'en' }, t }, siblingData: { image } },
+    )
+  const validate = (value: unknown) => run(false, value)
 
   test('accepts empty values and coordinates inside the image', () => {
     expect(validate(null)).toBe(true)
@@ -389,6 +397,28 @@ describe('validateCropData', () => {
 
   test('rejects a value that is not an object', () => {
     expect(validate('nope')).toBe('plugin-image-cropper:invalidCropData')
+  })
+
+  describe('requireAllCrops', () => {
+    const box = { height: 10, width: 10, x: 0, y: 0 }
+
+    test('names every missing crop once an image is selected', () => {
+      expect(run(true, null, 'media-1')).toBe(
+        'plugin-image-cropper:missingCrops{"names":"Desktop, Mobile"}',
+      )
+      expect(run(true, { desktop: box }, { id: 'media-1' })).toBe(
+        'plugin-image-cropper:missingCrops{"names":"Mobile"}',
+      )
+    })
+
+    test('passes with every crop set, or with no image', () => {
+      expect(run(true, { desktop: box, mobile: box }, 'media-1')).toBe(true)
+      expect(run(true, null, null)).toBe(true)
+    })
+
+    test('is off by default', () => {
+      expect(run(false, { desktop: box }, 'media-1')).toBe(true)
+    })
   })
 })
 
@@ -1116,6 +1146,67 @@ describe('Payload integration', () => {
       expect((post.heroImage?.generatedUrls as Record<string, string>).desktop).not.toMatch(/evil/)
     })
 
+    test('with requireAllCrops, saving with a missing crop fails and names it', async () => {
+      const media = await createMedia('save-missing-crop.png')
+      await expect(
+        payload.create({
+          collection: 'posts',
+          data: { heroImage: { cropData: { desktop: heroCrops.desktop }, image: media.id } },
+        }),
+      ).rejects.toMatchObject({
+        data: {
+          errors: [
+            expect.objectContaining({
+              message: 'Set every crop before saving: Mobile',
+              path: 'heroImage.cropData',
+            }),
+          ],
+        },
+      })
+    })
+
+    test('regenerateCrops re-renders stored crops to match the current definitions', async () => {
+      const media = await createMedia('regenerate.png')
+      const cardImage = {
+        cropData: { card: { height: 50, width: 100, x: 0, y: 0 } },
+        image: media.id,
+      }
+      const post = await payload.create({ collection: 'posts', data: { cardImage } })
+      // As if saved when the crop had a single, different size.
+      await payload.db.updateOne({
+        id: post.id,
+        collection: 'posts',
+        data: { cardImage: { ...cardImage, generatedUrls: { 'card.lg': '/media/old.webp' } } },
+      })
+
+      const brokenMedia = await createMedia('regenerate-broken.png')
+      const broken = await payload.create({
+        collection: 'posts',
+        data: { cardImage: { ...cardImage, image: brokenMedia.id } },
+      })
+      await fs.promises.unlink(path.join(mediaDir, brokenMedia.filename!))
+      const withoutCrops = await payload.create({ collection: 'posts', data: {} })
+
+      const result = await regenerateCrops({
+        batchSize: 2,
+        collection: 'posts',
+        field: 'cardImage',
+        payload,
+      })
+
+      const urls = (await payload.findByID({ id: post.id, collection: 'posts' })).cardImage
+        ?.generatedUrls as Record<string, string>
+      expect(Object.keys(urls).sort()).toEqual(['card.lg', 'card.md', 'card.sm'])
+      expect(urls['card.lg']).not.toBe('/media/old.webp')
+      expect(Object.values(urls).every(onDisk)).toBe(true)
+      expect(result.failed.map((f) => f.id)).toEqual([broken.id])
+      expect(result.failed[0]?.message).toMatch(/cardImage\.cropData/)
+      expect(result.skipped).toBeGreaterThanOrEqual(1)
+      expect(result.regenerated).toBeGreaterThanOrEqual(1)
+      await payload.delete({ id: withoutCrops.id, collection: 'posts' })
+      await payload.delete({ id: broken.id, collection: 'posts' })
+    })
+
     test('rejects coordinates outside the image', async () => {
       const media = await createMedia('save-invalid.png')
       await expect(
@@ -1243,6 +1334,45 @@ describe('getCropUrl – multi-size compound keys', () => {
 
   test('returns empty string when both compound key and image are absent', () => {
     expect(getCropUrl({}, 'card', 'lg')).toBe('')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Unit tests – getCropSrcSet
+// ---------------------------------------------------------------------------
+
+describe('getCropSrcSet', () => {
+  const card = {
+    name: 'card',
+    sizes: [
+      { name: 'sm', height: 219, label: 'Small', width: 390 },
+      { name: 'lg', height: 675, label: 'Large', width: 1200 },
+      { name: 'md', height: 432, label: 'Medium', width: 768 },
+    ],
+  }
+
+  test('lists every generated size, largest first', () => {
+    const value = {
+      generatedUrls: { 'card.lg': '/lg.webp', 'card.md': '/md.webp', 'card.sm': '/sm.webp' },
+    }
+    expect(getCropSrcSet(value, card)).toBe('/lg.webp 1200w, /md.webp 768w, /sm.webp 390w')
+  })
+
+  test('skips sizes without a generated URL', () => {
+    const value = { generatedUrls: { 'card.sm': '/sm.webp' } }
+    expect(getCropSrcSet(value, card)).toBe('/sm.webp 390w')
+  })
+
+  test('returns an empty string for an empty value', () => {
+    expect(getCropSrcSet(null, card)).toBe('')
+    expect(getCropSrcSet(undefined, card)).toBe('')
+    expect(getCropSrcSet({}, card)).toBe('')
+  })
+
+  test('handles single-size crops', () => {
+    const hero = { name: 'hero', height: 1080, width: 1920 }
+    expect(getCropSrcSet({ generatedUrls: {} }, hero)).toBe('')
+    expect(getCropSrcSet({ generatedUrls: { hero: '/hero.webp' } }, hero)).toBe('/hero.webp 1920w')
   })
 })
 

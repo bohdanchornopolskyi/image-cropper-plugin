@@ -1,7 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useId, useRef, useState } from 'react'
 import ReactCrop, { type PercentCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
 
@@ -20,6 +19,7 @@ import {
   percentCropToCoords,
 } from '../crop-geometry.js'
 import styles from './CropImageField.module.css'
+import { Dialog } from './Dialog.js'
 import { usePluginTranslation } from './usePluginTranslation.js'
 import { useResolveLabel } from './useResolveLabel.js'
 
@@ -57,6 +57,7 @@ export function CropModal({
   const [percentCrop, setPercentCrop] = useState<PercentCrop | undefined>()
   const [minCrop, setMinCrop] = useState<MinCrop | undefined>()
   const imgRef = useRef<HTMLImageElement>(null)
+  const titleId = useId()
 
   const activeDef = cropDefinitions.find((d) => d.name === activeTab)
   const activeLabel = activeDef ? resolveL(activeDef.label) : ''
@@ -135,30 +136,33 @@ export function CropModal({
     )
   }
 
-  // Only treat a backdrop click as a close request when the press *started* on the
-  // backdrop itself. Otherwise a crop drag that begins inside the modal and releases
-  // over the backdrop would fire a click on the backdrop and close the window.
-  const pressStartedOnBackdrop = useRef(false)
+  // What Apply will save: crops already visited, plus the one on screen.
+  const isSet = (name: string) =>
+    Boolean(pendingCrops[name]) || (name === activeTab && percentCrop !== undefined)
 
-  const handleBackdropMouseDown = (e: React.MouseEvent) => {
-    pressStartedOnBackdrop.current = e.target === e.currentTarget
-  }
-
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && pressStartedOnBackdrop.current) {
-      onClose()
+  const resetToFocal = () => {
+    const img = imgRef.current
+    if (img) {
+      setPercentCrop(
+        initCrop(
+          img.naturalWidth,
+          img.naturalHeight,
+          activeDef?.aspectRatio,
+          undefined,
+          minCrop,
+          focal,
+        ),
+      )
     }
   }
 
-  return createPortal(
-    <div
-      className={styles.backdrop}
-      onClick={handleBackdropClick}
-      onMouseDown={handleBackdropMouseDown}
-    >
+  return (
+    <Dialog labelledBy={titleId} onClose={onClose}>
       <div className={styles.modal}>
         <div className={styles.modalHeader}>
-          <h2 className={styles.modalTitle}>{t('cropImage')}</h2>
+          <h2 className={styles.modalTitle} id={titleId}>
+            {t('cropImage')}
+          </h2>
           <button
             aria-label={t('close')}
             className={styles.modalClose}
@@ -172,12 +176,17 @@ export function CropModal({
         <div className={styles.tabs}>
           {cropDefinitions.map((def) => (
             <button
+              aria-current={activeTab === def.name}
               className={`${styles.tab}${activeTab === def.name ? ` ${styles.tabActive}` : ''}`}
               key={def.name}
               onClick={() => switchTab(def.name)}
               type="button"
             >
+              <span className={`${styles.dot}${isSet(def.name) ? ` ${styles.dotSet}` : ''}`} />
               {resolveL(def.label)}
+              <span className={styles.srOnly}>
+                {` (${isSet(def.name) ? t('cropSet') : t('cropNotSet')})`}
+              </span>
             </button>
           ))}
         </div>
@@ -251,6 +260,11 @@ export function CropModal({
             </div>
           )}
           <div className={styles.footerActions}>
+            {focalPoint && (
+              <button className={styles.btnGhost} onClick={resetToFocal} type="button">
+                {t('resetToFocalPoint')}
+              </button>
+            )}
             <button className={styles.btnGhost} onClick={onClose} type="button">
               {t('cancel')}
             </button>
@@ -260,7 +274,6 @@ export function CropModal({
           </div>
         </div>
       </div>
-    </div>,
-    document.body,
+    </Dialog>
   )
 }

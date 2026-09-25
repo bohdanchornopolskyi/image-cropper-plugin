@@ -89,9 +89,81 @@ test('selecting an image opens the crop modal with a tab for each crop preset', 
   await page.goto('/admin/collections/posts/create')
   await chooseMedia(page, page.locator('#field-heroImage'), filename)
 
-  await expect(page.getByRole('heading', { name: /crop image/i })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Desktop', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Mobile', exact: true })).toBeVisible()
+  const dialog = page.getByRole('dialog', { name: /crop image/i })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('button', { name: /^Desktop/ })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: /^Mobile/ })).toBeVisible()
+})
+
+/** Opens the crop modal from the field's crop button, after the first pick has been dismissed. */
+async function openCropModalFromButton(page: Page, prefix: string) {
+  const filename = await uploadMedia(page, prefix)
+  await page.goto('/admin/collections/posts/create')
+  const field = page.locator('#field-heroImage')
+  await chooseMedia(page, field, filename)
+  const dialog = page.getByRole('dialog', { name: /crop image/i })
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(dialog).toBeHidden()
+
+  const cropButton = field.getByRole('button', { name: /crop image/i })
+  await cropButton.click()
+  await expect(dialog).toBeVisible()
+  await expect(dialog.locator('.ReactCrop__crop-selection')).toBeVisible()
+  return { cropButton, dialog, field }
+}
+
+test('Escape closes the crop modal and returns focus to the crop button', async ({ page }) => {
+  const { cropButton, dialog } = await openCropModalFromButton(page, 'escape')
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await expect(cropButton).toBeFocused()
+})
+
+test('Tab never moves focus to the page behind the crop modal', async ({ page }) => {
+  await openCropModalFromButton(page, 'trap')
+  // A modal <dialog> cycles through its own controls and the browser UI, which headless
+  // Chromium reports as <body>. Nothing behind the dialog may take focus.
+  for (let i = 0; i < 20; i++) {
+    await page.keyboard.press('Tab')
+    const outside = await page.evaluate(() => {
+      const el = document.activeElement
+      return el !== document.body && !el?.closest('dialog')
+    })
+    expect(outside).toBe(false)
+  }
+})
+
+test('crop tabs show which crops are set', async ({ page }) => {
+  const { dialog } = await openCropModalFromButton(page, 'status')
+  const mobile = dialog.getByRole('button', { name: /^Mobile/ })
+  await expect(dialog.getByRole('button', { name: /^Desktop/ })).toHaveAccessibleName(/\(set\)/)
+  await expect(mobile).toHaveAccessibleName(/\(not set\)/)
+  await mobile.click()
+  await expect(mobile).toHaveAccessibleName(/\(set\)/)
+})
+
+test('reset re-centres the crop on the focal point', async ({ page }) => {
+  const { dialog } = await openCropModalFromButton(page, 'reset')
+  await dialog.getByRole('button', { name: /^Mobile/ }).click()
+  await dialog.getByLabel('Focal Point X %').fill('36')
+  await dialog.getByRole('button', { name: 'Reset to focal point' }).click()
+
+  const image = await dialog.getByRole('img', { name: 'Crop source' }).boundingBox()
+  const selection = await dialog.locator('.ReactCrop__crop-selection').boundingBox()
+  const centreX = ((selection!.x + selection!.width / 2 - image!.x) / image!.width) * 100
+  expect(centreX).toBeCloseTo(36, 0)
+})
+
+test('Escape closes the preview modal and returns focus to its button', async ({ page }) => {
+  const { dialog, field } = await openCropModalFromButton(page, 'preview')
+  await dialog.getByRole('button', { name: 'Apply' }).click()
+  const previewButton = field.getByRole('button', { name: /preview crops/i })
+  await previewButton.click()
+  const preview = page.getByRole('dialog', { name: /crops & sizes/i })
+  await expect(preview).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(preview).toBeHidden()
+  await expect(previewButton).toBeFocused()
 })
 
 test('crop modal can be closed without saving', async ({ page }) => {

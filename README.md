@@ -219,6 +219,7 @@ Generated URLs are stored under compound keys: `card.lg`, `card.md`, `card.sm`.
 | `crops` | `CropDefinition[]` | — | **Required.** Array of crop presets |
 | `label` | `string \| Record<string, string>` | — | Display label in the admin panel. Accepts a locale map (see [Localized labels](#localized-labels)). |
 | `required` | `boolean` | `false` | Whether a selection is required |
+| `requireAllCrops` | `boolean` | `false` | Block saving while an image is selected but any crop has no coordinates. The error names the missing crops. Use it for layouts that break when a crop falls back to the uncropped original. Whether an image is needed at all is still up to `required`. |
 | `focalPoint` | `boolean` | `true` | Show the draggable focal-point marker in the crop modal, saved to the media doc's `focalX`/`focalY`. Set to `false` for fields where subject position is irrelevant (logos, flat graphics) — the marker is hidden and the media doc is never written to. |
 | `mediaCollectionSlug` | `string` | `'media'` | Override the media collection slug for this field |
 | `admin.condition` | `function` | — | Conditionally show this field |
@@ -376,6 +377,25 @@ const smMedia = resolveMediaCrop(post.cardImage, 'card', { width: 390,  height: 
 // → { id: '...', filename: '...', url: '/media/...card.lg....webp', width: 1200, height: 675, ... }
 ```
 
+#### `srcset` for a responsive `<img>`
+
+`getCropSrcSet` builds the `srcset` string from the crop definition you passed to `cropImageField`, which is where the pixel widths live. Keep the definition in a shared constant so the config and the frontend use the same one:
+
+```tsx
+import { getCropSrcSet, getCropUrl } from 'payload-plugin-image-cropper/utilities'
+import { cardCrop } from './crops' // the same object used in cropImageField({ crops: [cardCrop] })
+
+<img
+  src={getCropUrl(post.cardImage, 'card', 'lg')}
+  srcSet={getCropSrcSet(post.cardImage, cardCrop)}
+  // → '/media/photo-crop-0c9e….webp 1200w, /media/photo-crop-7a45….webp 768w, /media/photo-crop-e2b8….webp 390w'
+  sizes="(max-width: 768px) 100vw, 1200px"
+  alt="Card"
+/>
+```
+
+Sizes are listed largest first, and sizes without a generated file are skipped, so the result is `''` until the crop exists.
+
 #### Standard HTML — `<picture>` srcset
 
 ```html
@@ -408,6 +428,22 @@ function cardImageLoader({ width }) {
   priority
 />
 ```
+
+## Regenerating crops
+
+Crops are only rendered again when their coordinates or source image change. After you change a crop definition, for example by adding a size or switching the format, existing documents keep their old files until you regenerate them. `regenerateCrops` renders every stored crop of a field again from its saved coordinates:
+
+```ts
+import { getPayload } from 'payload'
+import config from '@payload-config'
+import { regenerateCrops } from 'payload-plugin-image-cropper'
+
+const payload = await getPayload({ config })
+const result = await regenerateCrops({ payload, collection: 'posts', field: 'cardImage' })
+// → { regenerated: 42, skipped: 3, failed: [{ id: '…', message: '…' }] }
+```
+
+Run it from a script, or from the `up` function of a Payload migration so it runs once per environment. It saves each document through the Local API in batches of `batchSize` (default 20), so the collection's own hooks run as they would on any other update. Documents without an image or crop coordinates are skipped. A document whose crops fail is reported in `failed` and the run continues. For a crop field inside named groups, pass a dot path such as `'hero.image'`. Fields inside arrays and blocks are not supported.
 
 ## Data shape
 

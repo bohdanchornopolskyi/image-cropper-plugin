@@ -1,10 +1,11 @@
 'use client'
 
-import { createPortal } from 'react-dom'
+import { useId } from 'react'
 
 import type { CropData, CropDefinition, GeneratedUrls } from '../types.js'
 
 import styles from './CropImageField.module.css'
+import { Dialog } from './Dialog.js'
 import { usePluginTranslation } from './usePluginTranslation.js'
 import { useResolveLabel } from './useResolveLabel.js'
 
@@ -73,18 +74,14 @@ type PreviewModalProps = {
 
 export function PreviewModal({ cropDefinitions, crops, onClose, urls }: PreviewModalProps) {
   const t = usePluginTranslation()
-  return createPortal(
-    <div
-      className={styles.backdrop}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onClose()
-        }
-      }}
-    >
+  const titleId = useId()
+  return (
+    <Dialog labelledBy={titleId} onClose={onClose}>
       <div className={styles.previewModal}>
         <div className={styles.modalHeader}>
-          <h2 className={styles.modalTitle}>{t('cropsAndSizes')}</h2>
+          <h2 className={styles.modalTitle} id={titleId}>
+            {t('cropsAndSizes')}
+          </h2>
           <button
             aria-label={t('close')}
             className={styles.modalClose}
@@ -98,7 +95,6 @@ export function PreviewModal({ cropDefinitions, crops, onClose, urls }: PreviewM
           <CropCards cropDefinitions={cropDefinitions} crops={crops} urls={urls} />
         </div>
       </div>
-    </div>,
-    document.body,
+    </Dialog>
   )
 }
