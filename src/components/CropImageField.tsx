@@ -4,7 +4,6 @@ import { Button, FieldDescription, FieldError, useConfig } from '@payloadcms/ui'
 
 import type { CropDefinition, StaticDescription, StaticLabel } from '../types.js'
 
-import { generateCropEndpoint } from '../crop-requests.js'
 import styles from './CropImageField.module.css'
 import { CropModal } from './CropModal.js'
 import { CropIcon, EditSvg, GridIcon, XSvg } from './icons.js'
@@ -39,7 +38,6 @@ export function CropImageField({
   const t = usePluginTranslation()
   const apiRoute = config.routes.api || '/api'
   const resolvedFieldLabel = resolveL(fieldLabel ?? 'Image')
-  const endpoint = generateCropEndpoint(apiRoute, mediaCollectionSlug)
 
   const {
     allCropsReady,
@@ -47,7 +45,6 @@ export function CropImageField({
     CreateMediaDrawer,
     crops,
     fileMeta,
-    generating,
     handleDocCreate,
     handleListSelect,
     handleSave,
@@ -60,12 +57,12 @@ export function CropImageField({
     remove,
     setModalOpen,
     setPreviewOpen,
+    showCropDataError,
     showError,
     urls,
   } = useCropImageField({
     apiRoute,
     cropDefinitions,
-    endpoint,
     mediaCollectionSlug,
     path,
     required,
@@ -82,6 +79,7 @@ export function CropImageField({
       {fieldDescription ? <FieldDescription description={fieldDescription} path={path} /> : null}
       <div className={styles.errorWrap}>
         <FieldError path={`${path}.image`} showError={showError} />
+        <FieldError path={`${path}.cropData`} showError={showCropDataError} />
       </div>
 
       {!media ? (
@@ -117,11 +115,7 @@ export function CropImageField({
 
           <div className={styles.mainDetail}>
             <span className={styles.filename}>{media.filename}</span>
-            {generating ? (
-              <span className={styles.generating}>{t('generatingCrops')}</span>
-            ) : (
-              fileMeta && <span className={styles.fileMeta}>{fileMeta}</span>
-            )}
+            {fileMeta && <span className={styles.fileMeta}>{fileMeta}</span>}
           </div>
 
           <div className={styles.iconActions}>
@@ -137,7 +131,7 @@ export function CropImageField({
             )}
             <button
               className={styles.iconBtn}
-              disabled={readOnly || generating}
+              disabled={readOnly}
               onClick={() => setModalOpen(true)}
               title={allCropsReady || anyCropSet ? t('editCrops') : t('cropImage')}
               type="button"

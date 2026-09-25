@@ -1,0 +1,152 @@
+import type { Config, FieldHook, Validate } from 'payload'
+
+import { ValidationError } from 'payload'
+
+import type { PluginTranslationKey } from './translations/index.js'
+import type { CropCoords, CropData, CropDefinition, CropStorage, GeneratedUrls } from './types.js'
+
+import { cropTargets, sameCoords } from './crop-targets.js'
+import { generateCrops, type SourceMedia } from './generate.js'
+import { isRecord } from './isRecord.js'
+
+const RUNTIME_KEY = 'payload-plugin-image-cropper'
+
+type PluginT = (
+  key: `plugin-image-cropper:${PluginTranslationKey}`,
+  opts?: Record<string, unknown>,
+) => string
+
+const pluginT = (t: unknown) => t as PluginT
+
+type CropRuntime = { mediaDir: string; storage: CropStorage }
+
+/** Server-only plugin state, keyed by media collection slug, read by the crop field hook. */
+export function withCropRuntime(config: Config, mediaSlug: string, runtime: CropRuntime): Config {
+  const existing = isRecord(config.custom?.[RUNTIME_KEY]) ? config.custom[RUNTIME_KEY] : {}
+  return {
+    ...config,
+    custom: { ...config.custom, [RUNTIME_KEY]: { ...existing, [mediaSlug]: runtime } },
+  }
+}
+
+function getCropRuntime(config: { custom?: Record<string, unknown> }, mediaSlug: string) {
+  const all = config.custom?.[RUNTIME_KEY]
+  return isRecord(all) ? (all[mediaSlug] as CropRuntime | undefined) : undefined
+}
+
+/** Tolerance for float drift in coordinates written by the crop UI. */
+const EPSILON = 0.01
+
+function isInsideImage(c: unknown): c is CropCoords {
+  if (!isRecord(c)) {
+    return false
+  }
+  const { height, width, x, y } = c
+  const nums = [x, y, width, height]
+  if (!nums.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+    return false
+  }
+  const [cx, cy, cw, ch] = nums as number[]
+  return (
+    cx >= -EPSILON &&
+    cy >= -EPSILON &&
+    cw > 0 &&
+    ch > 0 &&
+    cx + cw <= 100 + EPSILON &&
+    cy + ch <= 100 + EPSILON
+  )
+}
+
+export const validateCropData: Validate = (value, { req }) => {
+  const t = pluginT(req.t)
+  if (value === null || value === undefined) {
+    return true
+  }
+  if (!isRecord(value)) {
+    return t('plugin-image-cropper:invalidCropData')
+  }
+  const bad = Object.entries(value).find(([, coords]) => !isInsideImage(coords))
+  return bad ? t('plugin-image-cropper:cropOutsideImage', { name: bad[0] }) : true
+}
+
+function relationId(v: unknown): null | number | string {
+  if (typeof v === 'string' || typeof v === 'number') {
+    return v
+  }
+  return isRecord(v) && (typeof v.id === 'string' || typeof v.id === 'number') ? v.id : null
+}
+
+/**
+ * `beforeChange` hook for the `generatedUrls` sub-field. The stored URLs are server-owned:
+ * a crop is rendered when its coordinates or the source image changed, or its URL is
+ * missing, and every other URL is carried over from the previous document.
+ */
+export function makeGenerateCropsHook(
+  cropDefinitions: CropDefinition[],
+  mediaSlug: string,
+): FieldHook {
+  return async ({ overrideAccess, path, previousSiblingDoc, req, siblingData }) => {
+    const previous: Record<string, unknown> = previousSiblingDoc ?? {}
+    const imageId = relationId(siblingData.image !== undefined ? siblingData.image : previous.image)
+    const cropDataRaw =
+      siblingData.cropData !== undefined ? siblingData.cropData : previous.cropData
+    if (imageId === null || !isRecord(cropDataRaw)) {
+      return null
+    }
+
+    const cropData = cropDataRaw as CropData
+    const sameImage = String(relationId(previous.image)) === String(imageId)
+    const prevCropData = (isRecord(previous.cropData) ? previous.cropData : {}) as CropData
+    const prevUrls = (
+      sameImage && isRecord(previous.generatedUrls) ? previous.generatedUrls : {}
+    ) as GeneratedUrls
+
+    const urls: GeneratedUrls = {}
+    const targets = cropTargets(cropDefinitions, cropData).filter(({ coords }) =>
+      isInsideImage(coords),
+    )
+    const stale = targets.filter((target) => {
+      const prevUrl = prevUrls[target.key]
+      if (prevUrl && sameCoords(prevCropData[target.name], target.coords)) {
+        urls[target.key] = prevUrl
+        return false
+      }
+      return true
+    })
+    if (!stale.length) {
+      return urls
+    }
+
+    const cropDataPath = [...path.slice(0, -1), 'cropData'].join('.')
+    const fail = (message: string) =>
+      new ValidationError({
+        errors: [
+          {
+            message: pluginT(req.t)('plugin-image-cropper:cropFailed', { error: message }),
+            path: cropDataPath,
+          },
+        ],
+        req,
+      })
+
+    const runtime = getCropRuntime(req.payload.config, mediaSlug)
+    if (!runtime) {
+      throw fail(`cropImagePlugin is not configured for the "${mediaSlug}" collection`)
+    }
+
+    const media = (await req.payload
+      .findByID({ id: imageId, collection: mediaSlug, depth: 0, overrideAccess, req })
+      .catch(() => null)) as null | SourceMedia
+    if (!media) {
+      throw fail('Media not found')
+    }
+
+    try {
+      Object.assign(urls, await generateCrops({ ...runtime, media, targets: stale }))
+    } catch (e) {
+      req.payload.logger.error({ err: e, msg: '[imageCropper] Crop generation failed' })
+      throw fail(e instanceof Error ? e.message : 'Unknown error')
+    }
+    return urls
+  }
+}
