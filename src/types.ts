@@ -97,10 +97,11 @@ export type OnCropGeneratedContext = {
   mediaId: number | string
 }
 
-/** Internal cloud storage adapter used by the `s3` option and custom integrations. */
+/** Internal storage adapter that writes and removes crop files: local disk, S3 or `onCropGenerated`. */
 export type CropStorage = {
-  deleteCropsByBase?: (filenameBase: string) => Promise<void>
-  upload: (ctx: OnCropGeneratedContext) => Promise<{ url: string }>
+  deleteCropsByBase: (filenameBase: string) => Promise<void>
+  /** `replaces` is the filename prefix of crops this upload supersedes. */
+  upload: (ctx: { replaces?: string } & OnCropGeneratedContext) => Promise<{ url: string }>
 }
 
 /**

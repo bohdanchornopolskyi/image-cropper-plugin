@@ -7,6 +7,7 @@ import type { CropImageFieldConfig, CropImagePluginConfig } from './types.js'
 import { makeGenerateCropHandler } from './handler.js'
 import { makeDeleteOrphanedCrops } from './hook.js'
 import { makeS3CropStorage } from './s3.js'
+import { makeCallbackCropStorage, makeLocalCropStorage } from './storage.js'
 import { de as pluginTranslationsDe, en as pluginTranslationsEn } from './translations/index.js'
 
 export type {
@@ -26,7 +27,12 @@ export type {
 export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugin {
   const mediaSlug = pluginConfig.mediaCollectionSlug ?? 'media'
   const mediaDir = pluginConfig.mediaDir ?? path.join(process.cwd(), 'public/media')
-  const storage = pluginConfig.s3 ? makeS3CropStorage(pluginConfig.s3) : undefined
+  const local = makeLocalCropStorage(mediaDir)
+  const storage = pluginConfig.s3
+    ? makeS3CropStorage(pluginConfig.s3)
+    : pluginConfig.onCropGenerated
+      ? makeCallbackCropStorage(pluginConfig.onCropGenerated, local)
+      : local
 
   return (incomingConfig: Config): Config => {
     const collections = (incomingConfig.collections ?? []).map((collection) => {
@@ -39,22 +45,14 @@ export function cropImagePlugin(pluginConfig: CropImagePluginConfig = {}): Plugi
         endpoints: [
           ...(Array.isArray(collection.endpoints) ? collection.endpoints : []),
           {
-            handler: makeGenerateCropHandler(
-              mediaDir,
-              mediaSlug,
-              pluginConfig.onCropGenerated,
-              storage,
-            ),
+            handler: makeGenerateCropHandler(mediaDir, mediaSlug, storage),
             method: 'post' as const,
             path: '/generate-crop',
           },
         ],
         hooks: {
           ...collection.hooks,
-          afterDelete: [
-            ...(collection.hooks?.afterDelete ?? []),
-            makeDeleteOrphanedCrops(mediaDir, storage),
-          ],
+          afterDelete: [...(collection.hooks?.afterDelete ?? []), makeDeleteOrphanedCrops(storage)],
         },
       }
     })

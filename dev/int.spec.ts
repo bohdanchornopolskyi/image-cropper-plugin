@@ -6,7 +6,7 @@ import os from 'os'
 import path from 'path'
 import { getPayload } from 'payload'
 import sharp from 'sharp'
-import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import type { CropImageValue } from '../src/types.js'
 
@@ -15,6 +15,7 @@ import { buildCropRequests, generateCropEndpoint } from '../src/crop-requests.js
 import { makeGenerateCropHandler } from '../src/handler.js'
 import { makeDeleteOrphanedCrops } from '../src/hook.js'
 import { createCropImage, cropImageField, cropImagePlugin } from '../src/index.js'
+import { makeCallbackCropStorage, makeLocalCropStorage } from '../src/storage.js'
 import { getCropUrl, resolveMediaCrop } from '../src/utilities.js'
 
 /**
@@ -603,7 +604,7 @@ describe('makeDeleteOrphanedCrops', () => {
     await touch('hero-crop-desktop-0-0-100x100-1920x1080.webp')
     await touch('hero-crop-mobile-0-0-100x100-828x1470.webp')
 
-    const hook = makeDeleteOrphanedCrops(mediaDir)
+    const hook = makeDeleteOrphanedCrops(makeLocalCropStorage(mediaDir))
     await (hook as (arg: unknown) => Promise<void>)({ doc: { filename: 'hero.webp' } })
 
     expect(await exists('hero.webp')).toBe(true) // source not deleted
@@ -616,7 +617,7 @@ describe('makeDeleteOrphanedCrops', () => {
     await touch('hero-crop-desktop.webp')
     await touch('other-crop-desktop.webp')
 
-    const hook = makeDeleteOrphanedCrops(mediaDir)
+    const hook = makeDeleteOrphanedCrops(makeLocalCropStorage(mediaDir))
     await (hook as (arg: unknown) => Promise<void>)({ doc: { filename: 'hero.webp' } })
 
     expect(await exists('other-crop-desktop.webp')).toBe(true)
@@ -625,14 +626,14 @@ describe('makeDeleteOrphanedCrops', () => {
   test('is a no-op when doc has no filename', async () => {
     await touch('hero-crop-desktop.webp')
 
-    const hook = makeDeleteOrphanedCrops(mediaDir)
+    const hook = makeDeleteOrphanedCrops(makeLocalCropStorage(mediaDir))
     await (hook as (arg: unknown) => Promise<void>)({ doc: {} })
 
     expect(await exists('hero-crop-desktop.webp')).toBe(true)
   })
 
   test('does not throw when mediaDir does not exist', async () => {
-    const hook = makeDeleteOrphanedCrops('/nonexistent/path')
+    const hook = makeDeleteOrphanedCrops(makeLocalCropStorage('/nonexistent/path'))
     await expect(
       (hook as (arg: unknown) => Promise<void>)({ doc: { filename: 'hero.webp' } }),
     ).resolves.toBeUndefined()
@@ -641,10 +642,68 @@ describe('makeDeleteOrphanedCrops', () => {
   test('is a no-op when there are no crop files to delete', async () => {
     await touch('hero.webp')
 
-    const hook = makeDeleteOrphanedCrops(mediaDir)
+    const hook = makeDeleteOrphanedCrops(makeLocalCropStorage(mediaDir))
     await expect(
       (hook as (arg: unknown) => Promise<void>)({ doc: { filename: 'hero.webp' } }),
     ).resolves.toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Unit tests – makeLocalCropStorage
+// ---------------------------------------------------------------------------
+
+describe('makeLocalCropStorage', () => {
+  let mediaDir: string
+
+  beforeEach(async () => {
+    mediaDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'local-storage-test-'))
+  })
+
+  afterEach(async () => {
+    await fs.promises.rm(mediaDir, { force: true, recursive: true })
+  })
+
+  const upload = (filename: string, bytes = 'new') => ({
+    buffer: Buffer.from(bytes),
+    cropName: 'hero',
+    filename,
+    format: 'webp' as const,
+    mediaId: '1',
+    replaces: 'photo-crop-hero-',
+  })
+
+  test('writes the crop, returns its URL, and removes the crops it replaces', async () => {
+    await fs.promises.writeFile(path.join(mediaDir, 'photo-crop-hero-old.webp'), '')
+
+    const storage = makeLocalCropStorage(mediaDir)
+    const result = await storage.upload(upload('photo-crop-hero-new.webp'))
+
+    expect(result.url).toBe(`/${path.basename(mediaDir)}/photo-crop-hero-new.webp`)
+    expect(fs.readdirSync(mediaDir).sort()).toEqual(['photo-crop-hero-new.webp'])
+  })
+
+  test('keeps an existing file with the same name untouched', async () => {
+    const storage = makeLocalCropStorage(mediaDir)
+    await storage.upload(upload('photo-crop-hero-a.webp', 'first'))
+    await storage.upload(upload('photo-crop-hero-a.webp', 'second'))
+
+    expect(fs.readFileSync(path.join(mediaDir, 'photo-crop-hero-a.webp'), 'utf8')).toBe('first')
+  })
+
+  test('deletes every crop of a source and nothing else', async () => {
+    for (const name of [
+      'photo.jpg',
+      'photo-crop-a.webp',
+      'photo-crop-b.jpg',
+      'other-crop-a.webp',
+    ]) {
+      await fs.promises.writeFile(path.join(mediaDir, name), '')
+    }
+
+    await makeLocalCropStorage(mediaDir).deleteCropsByBase('photo')
+
+    expect(fs.readdirSync(mediaDir).sort()).toEqual(['other-crop-a.webp', 'photo.jpg'])
   })
 })
 
@@ -1319,7 +1378,11 @@ describe('makeGenerateCropHandler – compound keys and onCropGenerated', () => 
     const onCropGenerated = vi
       .fn()
       .mockResolvedValueOnce({ url: 'https://cdn.example.com/crop.webp' })
-    const handler = makeGenerateCropHandler(mediaDir, 'media', onCropGenerated)
+    const handler = makeGenerateCropHandler(
+      mediaDir,
+      'media',
+      makeCallbackCropStorage(onCropGenerated, makeLocalCropStorage(mediaDir)),
+    )
 
     const res = await callHandler(
       handler,
@@ -1346,7 +1409,11 @@ describe('makeGenerateCropHandler – compound keys and onCropGenerated', () => 
 
   test('onCropGenerated returning void falls back to local disk write', async () => {
     const onCropGenerated = vi.fn().mockResolvedValueOnce(undefined)
-    const handler = makeGenerateCropHandler(mediaDir, 'media', onCropGenerated)
+    const handler = makeGenerateCropHandler(
+      mediaDir,
+      'media',
+      makeCallbackCropStorage(onCropGenerated, makeLocalCropStorage(mediaDir)),
+    )
 
     const res = await callHandler(
       handler,
