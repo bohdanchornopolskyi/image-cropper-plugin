@@ -97,4 +97,13 @@ describe('makeS3CropStorage', () => {
       ['bucket-a', 'crops/c.webp'],
     ])
   })
+
+  test('uploads AVIF crops with the image/avif content type', async () => {
+    await makeS3CropStorage(s3Config('media', 'key')).upload({
+      ...upload,
+      filename: 'a.avif',
+      format: 'avif',
+    })
+    expect(s3.sent[0]?.input.ContentType).toBe('image/avif')
+  })
 })

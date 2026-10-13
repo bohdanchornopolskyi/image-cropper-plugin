@@ -7,7 +7,7 @@ A [Payload CMS 3.x](https://payloadcms.com) plugin that adds interactive image c
 - **Interactive crop modal** — powered by `react-image-crop` with aspect ratio constraints
 - **Multiple crop presets per field** — desktop, mobile, social, etc., each with its own dimensions and format
 - **Multi-size crops** — one crop selection generates multiple output sizes (e.g. 1200×675, 768×432, 390×219) for responsive images without making editors crop separately per breakpoint
-- **Server-side image generation** — Sharp processes crops on save; supports `webp`, `jpeg`, and `png`
+- **Server-side image generation** — Sharp processes crops on save; supports `webp`, `avif`, `jpeg`, and `png`
 - **S3 / cloud storage** — `onCropGenerated` callback receives the Sharp buffer and can upload to any storage provider, returning a CDN URL
 - **Automatic cleanup** — crop files are deleted when the source media is removed
 - **Frontend utilities** — `getCropUrl` and `resolveMediaCrop` helpers for templates
@@ -238,7 +238,7 @@ A crop preset is either a **single-size** variant (specify `width` + `height`) o
 | `width` | `number` | — | **Required.** Output image width in pixels |
 | `height` | `number` | — | **Required.** Output image height in pixels |
 | `aspectRatio` | `number` | — | Constrain the crop selection (e.g. `16 / 9`) |
-| `format` | `'webp' \| 'jpeg' \| 'png'` | `'webp'` | Output image format |
+| `format` | `'webp' \| 'avif' \| 'jpeg' \| 'png'` | `'webp'` | Output image format |
 | `quality` | `number` | `80` | Sharp quality (1–100, ignored for PNG) |
 
 **Multi-size** (use `sizes` instead of `width` / `height`)
@@ -249,8 +249,10 @@ A crop preset is either a **single-size** variant (specify `width` + `height`) o
 | `label` | `string \| Record<string, string>` | — | **Required.** Human-readable tab label in the crop modal. Accepts a locale map. |
 | `sizes` | `SizeDefinition[]` | — | **Required.** Output sizes to generate from this crop region |
 | `aspectRatio` | `number` | — | Constrain the crop selection |
-| `format` | `'webp' \| 'jpeg' \| 'png'` | `'webp'` | Output image format (applies to all sizes) |
+| `format` | `'webp' \| 'avif' \| 'jpeg' \| 'png'` | `'webp'` | Output image format (applies to all sizes) |
 | `quality` | `number` | `80` | Sharp quality (applies to all sizes) |
+
+AVIF files are usually much smaller than WebP at the same visual quality, so pages load faster. They take longer to encode, which makes saves that create or change crops slower. Crops that did not change are not encoded again. AVIF at `quality` 50 to 60 looks about like WebP at 80, so set a lower `quality` together with `format: 'avif'` to get the smallest files.
 
 ### `SizeDefinition`
 

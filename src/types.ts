@@ -3,7 +3,7 @@ import type { FilterOptions, StaticDescription, StaticLabel } from 'payload'
 export type { StaticDescription, StaticLabel }
 
 /** Output image format for Sharp processing */
-export type ImageFormat = 'jpeg' | 'png' | 'webp'
+export type ImageFormat = 'avif' | 'jpeg' | 'png' | 'webp'
 
 /** A single output size within a multi-size crop definition */
 export type SizeDefinition = {
@@ -29,7 +29,7 @@ export type CropDefinition = {
   label: StaticLabel
   /** Machine-readable slot name, used as the key in cropData and generatedUrls */
   name: string
-  /** Sharp quality, 1–100. Defaults to 80. Ignored for PNG. */
+  /** Sharp quality, 1–100. Defaults to 80. Ignored for PNG. For AVIF, 50–60 matches WebP at 80. */
   quality?: number
 } & (
   | {
