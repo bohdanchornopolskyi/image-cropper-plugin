@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.2] - 2026-10-13
+
+### Added
+
+- **AVIF output.** Set `format: 'avif'` on a crop definition to get AVIF files, which are
+  usually much smaller than WebP at the same visual quality. Encoding is slower, so saves that
+  create or change crops take longer. The S3 adapter uploads them as `image/avif`.
+
 ## [0.2.1] - 2026-09-25
 
 ### Added

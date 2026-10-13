@@ -15,6 +15,9 @@ export type SourceMedia = {
 }
 
 function applyFormat(pipeline: sharp.Sharp, format: ImageFormat, quality: number): sharp.Sharp {
+  if (format === 'avif') {
+    return pipeline.avif({ quality })
+  }
   if (format === 'jpeg') {
     return pipeline.jpeg({ quality })
   }

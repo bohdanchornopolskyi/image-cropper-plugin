@@ -1,8 +1,15 @@
 import type { S3Client } from '@aws-sdk/client-s3'
 
-import type { CropStorage, S3CropConfig } from './types.js'
+import type { CropStorage, ImageFormat, S3CropConfig } from './types.js'
 
 const DEFAULT_CACHE_CONTROL = 'public, max-age=31536000, immutable'
+
+const CONTENT_TYPES: Record<ImageFormat, string> = {
+  avif: 'image/avif',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+}
 
 function resolveKey(filename: string, prefix?: string): string {
   return prefix ? `${prefix.replace(/\/$/, '')}/${filename}` : filename
@@ -26,8 +33,7 @@ export function makeS3CropStorage(config: S3CropConfig): CropStorage {
       const { PutObjectCommand } = await import('@aws-sdk/client-s3')
       const s3 = await getClient()
       const key = resolveKey(ctx.filename, config.prefix)
-      const contentType =
-        ctx.format === 'jpeg' ? 'image/jpeg' : ctx.format === 'png' ? 'image/png' : 'image/webp'
+      const contentType = CONTENT_TYPES[ctx.format]
       await s3.send(
         new PutObjectCommand({
           ACL: config.acl,
