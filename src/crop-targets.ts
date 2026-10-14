@@ -4,12 +4,31 @@ export type CropTarget = {
   coords: CropCoords
   format: ImageFormat
   height: number
-  /** Key in generatedUrls: the crop name, or `cropName.sizeName` for multi-size crops. */
+  /** Key in generatedUrls: the crop name or `cropName.sizeName`, plus `@format` for non-fallback formats. */
   key: string
   /** Crop name in cropData. */
   name: string
   quality: number
   width: number
+}
+
+/** A crop's output formats in preference order, deduplicated. The last one is the fallback. */
+export function cropFormats(def: Pick<CropDefinition, 'format'>): ImageFormat[] {
+  const formats = [def.format ?? []].flat()
+  return formats.length ? [...new Set(formats)] : ['webp']
+}
+
+/** generatedUrls key of one format: the fallback (last) format keeps the plain key. */
+export function formatKey(key: string, format: ImageFormat, formats: ImageFormat[]): string {
+  return format === formats[formats.length - 1] ? key : `${key}@${format}`
+}
+
+/** Sharp quality for one format. PNG is lossless, so it gets a constant that keeps its filename hash stable. */
+export function formatQuality(quality: CropDefinition['quality'], format: ImageFormat): number {
+  if (format === 'png') {
+    return 80
+  }
+  return (typeof quality === 'number' ? quality : quality?.[format]) ?? 80
 }
 
 /** One target per output file: every size of every crop that has coordinates. */
@@ -24,13 +43,17 @@ export function cropTargets(cropDefinitions: CropDefinition[], cropData: CropDat
       ? def.sizes.map((s) => ({ height: s.height, key: `${def.name}.${s.name}`, width: s.width }))
       : [{ height: def.height, key: def.name, width: def.width }]
 
-    return sizes.map((size) => ({
-      ...size,
-      name: def.name,
-      coords,
-      format: def.format ?? 'webp',
-      quality: def.quality ?? 80,
-    }))
+    const formats = cropFormats(def)
+    return sizes.flatMap((size) =>
+      formats.map((format) => ({
+        ...size,
+        name: def.name,
+        coords,
+        format,
+        key: formatKey(size.key, format, formats),
+        quality: formatQuality(def.quality, format),
+      })),
+    )
   })
 }
 

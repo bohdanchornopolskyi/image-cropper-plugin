@@ -23,14 +23,22 @@ export type CropDefinition = {
    * When set, the crop handle is constrained to this ratio.
    */
   aspectRatio?: number
-  /** Output format. Defaults to 'webp'. */
-  format?: ImageFormat
+  /**
+   * Output format, or several in preference order (e.g. `['avif', 'webp']`) to render each crop
+   * once per format. The last one is the fallback and is stored under the plain key; the others
+   * are stored as `key@format`. Defaults to 'webp'.
+   */
+  format?: ImageFormat | ImageFormat[]
   /** Human-readable label shown in the crop modal tabs */
   label: StaticLabel
   /** Machine-readable slot name, used as the key in cropData and generatedUrls */
   name: string
-  /** Sharp quality, 1–100. Defaults to 80. Ignored for PNG. For AVIF, 50–60 matches WebP at 80. */
-  quality?: number
+  /**
+   * Sharp quality, an integer from 1 to 100, for every format or per format
+   * (e.g. `{ avif: 55, webp: 80 }`). Formats without a value use 80. Ignored for PNG.
+   * For AVIF, 50–60 matches WebP at 80.
+   */
+  quality?: number | Partial<Record<Exclude<ImageFormat, 'png'>, number>>
 } & (
   | {
       /** Output image height in pixels */
@@ -87,7 +95,7 @@ export type CropImageValue = {
 export type OnCropGeneratedContext = {
   /** Raw output bytes — upload this to your cloud storage bucket. */
   buffer: Buffer
-  /** Compound key that will be stored in generatedUrls (e.g. `"card.desktop"`). */
+  /** Key that will be stored in generatedUrls (e.g. `"card.desktop"` or `"card.desktop@avif"`). */
   cropName: string
   /** Output filename: the source name plus a hash of the crop's inputs (e.g. `"photo-crop-3f2a9c01d4e5b6a7.webp"`). */
   filename: string

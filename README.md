@@ -238,8 +238,8 @@ A crop preset is either a **single-size** variant (specify `width` + `height`) o
 | `width` | `number` | — | **Required.** Output image width in pixels |
 | `height` | `number` | — | **Required.** Output image height in pixels |
 | `aspectRatio` | `number` | — | Constrain the crop selection (e.g. `16 / 9`) |
-| `format` | `'webp' \| 'avif' \| 'jpeg' \| 'png'` | `'webp'` | Output image format |
-| `quality` | `number` | `80` | Sharp quality (1–100, ignored for PNG) |
+| `format` | `ImageFormat \| ImageFormat[]` | `'webp'` | Output format (`'webp'`, `'avif'`, `'jpeg'` or `'png'`), or several in preference order. See [Multiple formats](#multiple-formats-picture) |
+| `quality` | `number \| Partial<Record<'webp' \| 'avif' \| 'jpeg', number>>` | `80` | Sharp quality (integer 1–100, ignored for PNG), for every format or per format (e.g. `{ avif: 55, webp: 80 }`) |
 
 **Multi-size** (use `sizes` instead of `width` / `height`)
 
@@ -249,10 +249,10 @@ A crop preset is either a **single-size** variant (specify `width` + `height`) o
 | `label` | `string \| Record<string, string>` | — | **Required.** Human-readable tab label in the crop modal. Accepts a locale map. |
 | `sizes` | `SizeDefinition[]` | — | **Required.** Output sizes to generate from this crop region |
 | `aspectRatio` | `number` | — | Constrain the crop selection |
-| `format` | `'webp' \| 'avif' \| 'jpeg' \| 'png'` | `'webp'` | Output image format (applies to all sizes) |
-| `quality` | `number` | `80` | Sharp quality (applies to all sizes) |
+| `format` | `ImageFormat \| ImageFormat[]` | `'webp'` | Output format, or several in preference order (applies to all sizes) |
+| `quality` | `number \| Partial<Record<'webp' \| 'avif' \| 'jpeg', number>>` | `80` | Sharp quality, for every format or per format (applies to all sizes) |
 
-AVIF files are usually much smaller than WebP at the same visual quality, so pages load faster. They take longer to encode, which makes saves that create or change crops slower. Crops that did not change are not encoded again. AVIF at `quality` 50 to 60 looks about like WebP at 80, so set a lower `quality` together with `format: 'avif'` to get the smallest files.
+AVIF files are usually much smaller than WebP at the same visual quality, so pages load faster. They take longer to encode, which makes saves that create or change crops slower. Crops that did not change are not encoded again. AVIF at `quality` 50 to 60 looks about like WebP at 80, so set a lower `quality` together with `format: 'avif'` to get the smallest files. With several formats, give each its own value: `quality: { avif: 55, webp: 80 }`.
 
 ### `SizeDefinition`
 
@@ -398,6 +398,33 @@ import { cardCrop } from './crops' // the same object used in cropImageField({ c
 
 Sizes are listed largest first, and sizes without a generated file are skipped, so the result is `''` until the crop exists.
 
+#### Multiple formats (`<picture>`)
+
+Pass `format` as a list in preference order to render every size once per format, for example AVIF with a WebP fallback for browsers that cannot decode AVIF:
+
+```ts
+import type { CropDefinition } from 'payload-plugin-image-cropper'
+
+export const cardCrop: CropDefinition = {
+  name: 'card',
+  label: 'Card',
+  format: ['avif', 'webp'],
+  quality: { avif: 55, webp: 80 },
+  sizes: [/* ... */],
+}
+```
+
+The last format is the fallback. It is stored under the plain key (`card.lg`), so `getCropUrl`, `resolveMediaCrop` and `getCropSrcSet` without a format return it. The other formats are stored as `card.lg@avif`. Pass the format to `getCropSrcSet` for each `<source>`:
+
+```tsx
+<picture>
+  <source type="image/avif" srcSet={getCropSrcSet(post.cardImage, cardCrop, 'avif')} sizes="100vw" />
+  <img src={getCropUrl(post.cardImage, 'card', 'lg')} srcSet={getCropSrcSet(post.cardImage, cardCrop)} sizes="100vw" alt="Card" />
+</picture>
+```
+
+Set `quality` per format, for example `quality: { avif: 55, webp: 80 }`, since AVIF reaches the same visual quality at lower values. Each extra format adds one encode per size on save.
+
 #### Standard HTML — `<picture>` srcset
 
 ```html
@@ -433,7 +460,7 @@ function cardImageLoader({ width }) {
 
 ## Regenerating crops
 
-Crops are only rendered again when their coordinates or source image change. After you change a crop definition, for example by adding a size or switching the format, existing documents keep their old files until you regenerate them. `regenerateCrops` renders every stored crop of a field again from its saved coordinates:
+Crops are only rendered again when their coordinates or source image change. After you change a crop definition, for example by adding a size or changing the format or quality, existing documents keep their old files until you regenerate them. `regenerateCrops` renders every stored crop of a field again from its saved coordinates:
 
 ```ts
 import { getPayload } from 'payload'
