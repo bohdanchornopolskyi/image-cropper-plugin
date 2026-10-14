@@ -403,7 +403,9 @@ Sizes are listed largest first, and sizes without a generated file are skipped, 
 Pass `format` as a list in preference order to render every size once per format, for example AVIF with a WebP fallback for browsers that cannot decode AVIF:
 
 ```ts
-export const cardCrop = {
+import type { CropDefinition } from 'payload-plugin-image-cropper'
+
+export const cardCrop: CropDefinition = {
   name: 'card',
   label: 'Card',
   format: ['avif', 'webp'],
