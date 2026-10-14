@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.3] - 2026-10-14
+
+### Added
+
+- **Several formats per crop.** `format` accepts a list in preference order, for example
+  `['avif', 'webp']`, and each size is rendered once per format. The last format is the
+  fallback and keeps the plain `generatedUrls` key, so `getCropUrl` and existing data work as
+  before. The other formats are stored as `key@format`. `getCropSrcSet(value, crop, format)`
+  returns the `srcset` for a `<picture>` `<source>`.
+- **Per-format quality.** `quality` accepts a map such as `{ avif: 55, webp: 80 }`. Formats
+  without a value use 80.
+
+### Changed
+
+- `cropImageField` throws at config time when a quality is not an integer from 1 to 100.
+- PNG crops ignore `quality` when naming files, since PNG output does not depend on it.
+
 ## [0.2.2] - 2026-10-13
 
 ### Added
