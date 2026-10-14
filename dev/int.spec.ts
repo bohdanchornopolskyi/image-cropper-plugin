@@ -9,7 +9,7 @@ import sharp from 'sharp'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import type { CropTarget } from '../src/crop-targets.js'
-import type { CropImageValue } from '../src/types.js'
+import type { CropImageValue, ImageFormat } from '../src/types.js'
 
 import { focalInCrop, initCrop } from '../src/crop-geometry.js'
 import { cropTargets } from '../src/crop-targets.js'
@@ -356,6 +356,46 @@ describe('cropTargets', () => {
     )
     expect(target?.format).toBe('jpeg')
     expect(target?.quality).toBe(90)
+  })
+
+  test('resolves quality per format, ignoring it for PNG', () => {
+    const targets = cropTargets(
+      [
+        {
+          name: 'hero',
+          format: ['avif', 'webp', 'jpeg', 'png'],
+          height: 100,
+          label: 'Hero',
+          quality: { avif: 55, jpeg: 90 },
+          width: 100,
+        },
+      ],
+      { hero: coords },
+    )
+    expect(targets.map((t) => [t.format, t.quality])).toEqual([
+      ['avif', 55],
+      ['webp', 80],
+      ['jpeg', 90],
+      ['png', 80],
+    ])
+  })
+
+  test('renders every format per size, the last one under the plain key', () => {
+    const targets = cropTargets(
+      [
+        {
+          name: 'card',
+          format: ['avif', 'webp', 'avif'],
+          label: 'Card',
+          sizes: [{ name: 'lg', height: 675, label: 'Large', width: 1200 }],
+        },
+      ],
+      { card: coords },
+    )
+    expect(targets.map((t) => [t.key, t.format])).toEqual([
+      ['card.lg@avif', 'avif'],
+      ['card.lg', 'webp'],
+    ])
   })
 })
 
@@ -1367,6 +1407,17 @@ describe('getCropSrcSet', () => {
     expect(getCropSrcSet(null, card)).toBe('')
     expect(getCropSrcSet(undefined, card)).toBe('')
     expect(getCropSrcSet({}, card)).toBe('')
+  })
+
+  test('picks the URLs of the requested format', () => {
+    const value = {
+      generatedUrls: { 'card.lg': '/lg.webp', 'card.lg@avif': '/lg.avif', 'card.sm': '/sm.webp' },
+    }
+    const multi = { ...card, format: ['avif', 'webp'] as ImageFormat[] }
+    expect(getCropSrcSet(value, multi, 'avif')).toBe('/lg.avif 1200w')
+    expect(getCropSrcSet(value, multi, 'webp')).toBe('/lg.webp 1200w, /sm.webp 390w')
+    expect(getCropSrcSet(value, multi)).toBe('/lg.webp 1200w, /sm.webp 390w')
+    expect(getCropSrcSet(value, multi, 'jpeg')).toBe('')
   })
 
   test('handles single-size crops', () => {

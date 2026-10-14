@@ -1,5 +1,6 @@
-import type { CropDefinition, CropImageValue, StaticLabel } from './types.js'
+import type { CropDefinition, CropImageValue, ImageFormat, StaticLabel } from './types.js'
 
+import { cropFormats, formatKey } from './crop-targets.js'
 import { isRecord } from './isRecord.js'
 
 /**
@@ -55,18 +56,22 @@ export function getCropUrl(
  * Returns a `srcset` string with one `url widthw` entry per generated size of a crop, largest
  * first. Sizes without a generated URL are skipped, so the result is `''` until the crop exists.
  *
- * @param value  The cropImage group field value from Payload
- * @param crop   The crop definition passed to `cropImageField`, which carries the pixel widths
+ * @param value   The cropImage group field value from Payload
+ * @param crop    The crop definition passed to `cropImageField`, which carries the pixel widths
+ * @param format  One of the crop's formats, for a `<picture>` `<source>`. Defaults to the fallback
+ *                (last) format. Returns `''` for a format the crop does not render.
  *
  * @example
  * <img src={getCropUrl(post.card, 'card', 'lg')} srcSet={getCropSrcSet(post.card, cardCrop)} sizes="100vw" />
  */
 export function getCropSrcSet(
   value: CropImageValue | null | undefined,
-  crop: Pick<CropDefinition, 'name' | 'sizes' | 'width'>,
+  crop: Pick<CropDefinition, 'format' | 'name' | 'sizes' | 'width'>,
+  format?: ImageFormat,
 ): string {
   const urls = value?.generatedUrls
-  if (!isRecord(urls)) {
+  const formats = cropFormats(crop)
+  if (!isRecord(urls) || (format && !formats.includes(format))) {
     return ''
   }
   const sizes = crop.sizes
@@ -75,7 +80,7 @@ export function getCropSrcSet(
 
   return sizes
     .flatMap(({ key, width }) => {
-      const url = urls[key]
+      const url = urls[format ? formatKey(key, format, formats) : key]
       return typeof url === 'string' && width > 0 ? [{ url, width }] : []
     })
     .sort((a, b) => b.width - a.width)

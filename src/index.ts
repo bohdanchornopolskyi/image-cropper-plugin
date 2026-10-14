@@ -4,6 +4,7 @@ import path from 'path'
 
 import type { CropImageFieldConfig, CropImagePluginConfig } from './types.js'
 
+import { cropFormats, formatQuality } from './crop-targets.js'
 import { makeGenerateCropsHook, makeValidateCropData, withCropRuntime } from './field-hooks.js'
 import { makeDeleteOrphanedCrops } from './hook.js'
 import { makeS3CropStorage } from './s3.js'
@@ -101,6 +102,16 @@ export function createCropImage(pluginConfig: CropImagePluginConfig = {}): {
 
 export function cropImageField(config: CropImageFieldConfig): Field {
   const mediaSlug = config.mediaCollectionSlug ?? 'media'
+  for (const def of config.crops) {
+    for (const format of cropFormats(def)) {
+      const quality = formatQuality(def.quality, format)
+      if (!Number.isInteger(quality) || quality < 1 || quality > 100) {
+        throw new Error(
+          `[imageCropper] Crop "${def.name}" has ${format} quality ${quality}, expected an integer from 1 to 100`,
+        )
+      }
+    }
+  }
 
   return {
     name: config.name,
