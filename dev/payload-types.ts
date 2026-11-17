@@ -190,6 +190,32 @@ export interface Post {
       | boolean
       | null;
   };
+  slides?:
+    | {
+        image?: {
+          image?: (string | null) | Media;
+          cropData?:
+            | {
+                [k: string]: unknown;
+              }
+            | unknown[]
+            | string
+            | number
+            | boolean
+            | null;
+          generatedUrls?:
+            | {
+                [k: string]: unknown;
+              }
+            | unknown[]
+            | string
+            | number
+            | boolean
+            | null;
+        };
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -383,6 +409,18 @@ export interface PostsSelect<T extends boolean = true> {
         image?: T;
         cropData?: T;
         generatedUrls?: T;
+      };
+  slides?:
+    | T
+    | {
+        image?:
+          | T
+          | {
+              image?: T;
+              cropData?: T;
+              generatedUrls?: T;
+            };
+        id?: T;
       };
   updatedAt?: T;
   createdAt?: T;
