@@ -142,6 +142,19 @@ const buildConfigWithMemoryDB = async () => {
             ],
             label: { de: 'Kartenbild (2)', en: 'Card Image (2)' },
           }),
+          {
+            name: 'slides',
+            type: 'array',
+            fields: [
+              cropField({
+                name: 'image',
+                crops: [
+                  { name: 'wide', aspectRatio: 16 / 9, height: 1080, label: 'Wide', width: 1920 },
+                ],
+                label: 'Slide Image',
+              }),
+            ],
+          },
         ],
       },
       {

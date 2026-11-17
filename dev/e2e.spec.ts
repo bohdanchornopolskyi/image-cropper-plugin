@@ -239,3 +239,56 @@ test('post list shows the created post after saving', async ({ page }) => {
   const rows = page.locator('table tbody tr').or(page.locator('[data-list-item]'))
   await expect(rows.first()).toBeVisible({ timeout: 10_000 })
 })
+
+test('moving an array row keeps its crop field data with the row', async ({ page }) => {
+  const filename = await uploadMedia(page, 'move')
+  await page.goto('/admin/collections/posts/create')
+
+  const addRow = page.getByRole('button', { name: /add slide/i })
+  await addRow.click()
+  await addRow.click()
+  const first = page.locator('#field-slides__0__image')
+  const second = page.locator('#field-slides__1__image')
+
+  await chooseMedia(page, first, filename)
+  const dialog = page.getByRole('dialog', { name: /crop image/i })
+  await expect(dialog.locator('.ReactCrop__crop-selection')).toBeVisible()
+  await dialog.getByRole('button', { name: 'Apply' }).click()
+  await expect(first.getByText(filename)).toBeVisible()
+
+  // Hold form-state requests so the rows are checked before the server re-renders the moved field.
+  let release = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
+  await page.route('**/*', async (route) => {
+    if (route.request().method() === 'POST') {
+      await held
+    }
+    await route.continue()
+  })
+
+  await page.locator('#slides-row-0 .array-actions__button').click()
+  await page.getByRole('button', { name: /move down/i }).click()
+
+  await expect(page.locator('#slides-row-1').getByText(filename)).toBeVisible({ timeout: 3_000 })
+  await expect(
+    page.locator('#slides-row-0').getByRole('button', { name: /choose from existing/i }),
+  ).toBeVisible({ timeout: 3_000 })
+
+  release()
+  await page.unrouteAll()
+  await expect(second.getByText(filename)).toBeVisible()
+  await expect(first.getByRole('button', { name: /choose from existing/i })).toBeVisible()
+
+  await page.getByRole('button', { name: /save/i }).click()
+  await expect(page).toHaveURL(/\/admin\/collections\/posts\/(?!create$)[^/]+$/)
+
+  const id = page.url().split('/').pop()
+  const doc = (await (await page.request.get(`/api/posts/${id}`)).json()) as {
+    slides: { image?: { cropData?: null | Record<string, unknown>; image?: { filename: string } | null } }[]
+  }
+  expect(doc.slides).toHaveLength(2)
+  expect(doc.slides[0].image?.image ?? null).toBeNull()
+  expect(doc.slides[0].image?.cropData ?? null).toBeNull()
+  expect(doc.slides[1].image?.image?.filename).toBe(filename)
+  expect(Object.keys(doc.slides[1].image?.cropData ?? {})).toEqual(['wide'])
+})

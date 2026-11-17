@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, FieldDescription, FieldError, useConfig } from '@payloadcms/ui'
+import { Button, FieldDescription, FieldError, useConfig, useFieldPath } from '@payloadcms/ui'
 
 import type { CropDefinition, StaticDescription, StaticLabel } from '../types.js'
 
@@ -29,10 +29,11 @@ export function CropImageField({
   fieldLabel,
   focalPoint = true,
   mediaCollectionSlug = 'media',
-  path,
+  path: pathFromProps,
   readOnly,
   required = false,
 }: Props) {
+  const path = useFieldPath() ?? pathFromProps
   const { config } = useConfig()
   const resolveL = useResolveLabel()
   const t = usePluginTranslation()
