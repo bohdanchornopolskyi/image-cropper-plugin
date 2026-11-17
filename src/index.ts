@@ -145,12 +145,31 @@ export function cropImageField(config: CropImageFieldConfig): Field {
       {
         name: 'cropData',
         type: 'json',
+        typescriptSchema: [
+          () => ({
+            type: ['object', 'null'],
+            additionalProperties: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                height: { type: 'number' },
+                width: { type: 'number' },
+                x: { type: 'number' },
+                y: { type: 'number' },
+              },
+              required: ['x', 'y', 'width', 'height'],
+            },
+          }),
+        ],
         validate: makeValidateCropData(config.crops, config.requireAllCrops ?? false),
       },
       {
         name: 'generatedUrls',
         type: 'json',
         hooks: { beforeChange: [makeGenerateCropsHook(config.crops, mediaSlug)] },
+        typescriptSchema: [
+          () => ({ type: ['object', 'null'], additionalProperties: { type: 'string' } }),
+        ],
       },
     ],
     label: config.label ?? false,

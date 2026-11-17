@@ -129,66 +129,45 @@ export interface Post {
   id: string;
   heroImage?: {
     image?: (string | null) | Media;
-    cropData?:
-      | {
-          [k: string]: unknown;
-        }
-      | unknown[]
-      | string
-      | number
-      | boolean
-      | null;
-    generatedUrls?:
-      | {
-          [k: string]: unknown;
-        }
-      | unknown[]
-      | string
-      | number
-      | boolean
-      | null;
+    cropData?: {
+      [k: string]: {
+        height: number;
+        width: number;
+        x: number;
+        y: number;
+      };
+    } | null;
+    generatedUrls?: {
+      [k: string]: string;
+    } | null;
   };
   cardImage?: {
     image?: (string | null) | Media;
-    cropData?:
-      | {
-          [k: string]: unknown;
-        }
-      | unknown[]
-      | string
-      | number
-      | boolean
-      | null;
-    generatedUrls?:
-      | {
-          [k: string]: unknown;
-        }
-      | unknown[]
-      | string
-      | number
-      | boolean
-      | null;
+    cropData?: {
+      [k: string]: {
+        height: number;
+        width: number;
+        x: number;
+        y: number;
+      };
+    } | null;
+    generatedUrls?: {
+      [k: string]: string;
+    } | null;
   };
   cardImage2?: {
     image?: (string | null) | Media;
-    cropData?:
-      | {
-          [k: string]: unknown;
-        }
-      | unknown[]
-      | string
-      | number
-      | boolean
-      | null;
-    generatedUrls?:
-      | {
-          [k: string]: unknown;
-        }
-      | unknown[]
-      | string
-      | number
-      | boolean
-      | null;
+    cropData?: {
+      [k: string]: {
+        height: number;
+        width: number;
+        x: number;
+        y: number;
+      };
+    } | null;
+    generatedUrls?: {
+      [k: string]: string;
+    } | null;
   };
   updatedAt: string;
   createdAt: string;
@@ -229,24 +208,17 @@ export interface Page {
   id: string;
   coverImage: {
     image: string | Media;
-    cropData?:
-      | {
-          [k: string]: unknown;
-        }
-      | unknown[]
-      | string
-      | number
-      | boolean
-      | null;
-    generatedUrls?:
-      | {
-          [k: string]: unknown;
-        }
-      | unknown[]
-      | string
-      | number
-      | boolean
-      | null;
+    cropData?: {
+      [k: string]: {
+        height: number;
+        width: number;
+        x: number;
+        y: number;
+      };
+    } | null;
+    generatedUrls?: {
+      [k: string]: string;
+    } | null;
   };
   updatedAt: string;
   createdAt: string;
