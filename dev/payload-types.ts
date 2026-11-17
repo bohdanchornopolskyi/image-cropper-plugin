@@ -173,24 +173,17 @@ export interface Post {
     | {
         image?: {
           image?: (string | null) | Media;
-          cropData?:
-            | {
-                [k: string]: unknown;
-              }
-            | unknown[]
-            | string
-            | number
-            | boolean
-            | null;
-          generatedUrls?:
-            | {
-                [k: string]: unknown;
-              }
-            | unknown[]
-            | string
-            | number
-            | boolean
-            | null;
+          cropData?: {
+            [k: string]: {
+              height: number;
+              width: number;
+              x: number;
+              y: number;
+            };
+          } | null;
+          generatedUrls?: {
+            [k: string]: string;
+          } | null;
         };
         id?: string | null;
       }[]
