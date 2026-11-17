@@ -613,6 +613,10 @@ describe('resolveMediaCrop', () => {
     expect(resolveMediaCrop({ image: 42 }, 'desktop')).toBeNull()
   })
 
+  test('returns null when image is a string ID (depth=0)', () => {
+    expect(resolveMediaCrop({ image: '65f1c2a9e4b0a1b2c3d4e5f6' }, 'desktop')).toBeNull()
+  })
+
   test('returns the image doc when no generated URL exists', () => {
     const value = { generatedUrls: {}, image: mediaDoc }
     const result = resolveMediaCrop(value, 'desktop')

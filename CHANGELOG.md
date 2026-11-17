@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.4] - 2026-11-17
+
+### Added
+
+- **Typed `cropData` and `generatedUrls`.** `payload generate:types` now writes real shapes for
+  both sub-fields: `cropData` is a map of crop name to `{ x, y, width, height }` and
+  `generatedUrls` is a map of key to URL string, instead of `unknown` JSON.
+
+### Changed
+
+- The `payload` peer dependency is now `^3.80.0`, matching the documented requirement.
+
+### Fixed
+
+- `resolveMediaCrop` accepts an unpopulated string ID for `image` (MongoDB, or Postgres with
+  UUIDs) and returns `null` for it, so the generated type passes without a cast.
+- The crop field reads and writes its data at the current path after its array or blocks row
+  is moved. Before, it kept the old row index until the server re-rendered it, so edits could
+  land on the wrong row and leave orphan data behind.
+
 ## [0.2.3] - 2026-10-14
 
 ### Added

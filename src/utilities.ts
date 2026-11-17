@@ -139,7 +139,7 @@ export function resolveMediaCrop<
   },
 >(
   value:
-    | { cropData?: unknown; generatedUrls?: unknown; image?: null | number | T }
+    | { cropData?: unknown; generatedUrls?: unknown; image?: null | number | string | T }
     | null
     | undefined,
   cropName: string,
@@ -151,8 +151,7 @@ export function resolveMediaCrop<
   }
 
   const imageValue = value.image
-  const imageDoc: null | T =
-    imageValue != null && typeof imageValue !== 'number' ? imageValue : null
+  const imageDoc: null | T = typeof imageValue === 'object' ? imageValue : null
 
   if (!imageDoc) {
     return null
